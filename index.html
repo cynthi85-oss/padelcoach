@@ -29,8 +29,8 @@ body{background:var(--c0);min-height:100dvh;overflow-x:hidden}
 #app{max-width:430px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;position:relative;background:var(--c1)}
 
 /* ─── HEADER ─────────────────────────────────────────────────────── */
-.hdr{padding:52px 20px 16px;background:var(--c1);border-bottom:1px solid var(--c2);position:sticky;top:0;z-index:40;backdrop-filter:blur(20px)}
-.hdr-row{display:flex;align-items:center;justify-content:space-between}
+.hdr{padding:52px 20px 0;background:var(--c1);border-bottom:1px solid var(--c2);position:sticky;top:0;z-index:40;backdrop-filter:blur(20px)}
+.hdr-row{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px}
 .hdr-logo{font-size:22px;font-weight:700;letter-spacing:-1px;color:var(--cw)}
 .hdr-logo span{color:var(--g)}
 .hdr-date{font-size:12px;color:var(--c6);margin-top:3px}
@@ -225,6 +225,14 @@ h2{font-size:20px;font-weight:700;color:var(--cw);letter-spacing:-.3px}
 .flex{display:flex}.gap-8{gap:8px}.gap-12{gap:12px}.mt-8{margin-top:8px}.mt-12{margin-top:12px}
 .center{text-align:center}.bold{font-weight:700}
 .divider{height:1px;background:var(--c3);margin:12px 0}
+
+/* ─── CLUB TABS ──────────────────────────────────────────────────── */
+.club-tabs{display:flex;gap:6px;padding:10px 20px 0;background:var(--c1)}
+.club-tab{flex:1;padding:8px 0;border-radius:var(--rs) var(--rs) 0 0;border:1px solid var(--c3);border-bottom:none;background:var(--c2);color:var(--c6);font-size:12px;font-weight:700;text-align:center;cursor:pointer;letter-spacing:.6px;text-transform:uppercase;transition:background .15s,color .15s;position:relative;bottom:-1px}
+.club-tab.on{background:var(--c1);color:var(--g);border-color:var(--c3);border-bottom-color:var(--c1)}
+.club-tag{display:inline-flex;align-items:center;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;background:rgba(74,158,255,0.15);color:#4a9eff;margin-left:4px}
+.club-tag.first{background:rgba(0,200,150,0.15);color:var(--g)}
+.club-tag.aera{background:rgba(167,139,250,0.15);color:#a78bfa}
 </style>
 </head>
 <body>
@@ -237,6 +245,10 @@ h2{font-size:20px;font-weight:700;color:var(--cw);letter-spacing:-.3px}
         <div class="hdr-date" id="hdr-date"></div>
       </div>
       <div class="hdr-av" id="hdr-av">EP</div>
+    </div>
+    <div class="club-tabs" id="club-tabs">
+      <div class="club-tab on" data-club="FIRST" onclick="setClub('FIRST')">🎾 FIRST</div>
+      <div class="club-tab" data-club="AERA" onclick="setClub('AERA')">🏆 AERA</div>
     </div>
   </header>
 
@@ -341,11 +353,11 @@ const DB = (() => {
         const hoy = fmt(new Date());
         const ad = n => { const x = new Date(); x.setDate(x.getDate()+n); return fmt(x); };
         const at = t.objectStore('alumnos');
-        at.add({ nombre:'Martina López',   nivel:1, freq:3, tel:'11-5555-0001', email:'martina@mail.com', color:'teal',   desde:hoy });
-        at.add({ nombre:'Carlos Méndez',   nivel:0, freq:2, tel:'11-5555-0002', email:'carlos@mail.com',  color:'amber',  desde:hoy });
-        at.add({ nombre:'Ana García',      nivel:2, freq:4, tel:'11-5555-0003', email:'ana@mail.com',     color:'green',  desde:hoy });
-        at.add({ nombre:'Jorge Pérez',     nivel:1, freq:2, tel:'11-5555-0004', email:'jorge@mail.com',   color:'blue',   desde:hoy });
-        at.add({ nombre:'Sofía Ruiz',      nivel:0, freq:1, tel:'11-5555-0005', email:'sofia@mail.com',   color:'coral',  desde:hoy });
+        at.add({ nombre:'Martina López',   nivel:1, freq:3, tel:'11-5555-0001', email:'martina@mail.com', color:'teal',   desde:hoy, club:'FIRST' });
+        at.add({ nombre:'Carlos Méndez',   nivel:0, freq:2, tel:'11-5555-0002', email:'carlos@mail.com',  color:'amber',  desde:hoy, club:'FIRST' });
+        at.add({ nombre:'Ana García',      nivel:2, freq:4, tel:'11-5555-0003', email:'ana@mail.com',     color:'green',  desde:hoy, club:'AERA' });
+        at.add({ nombre:'Jorge Pérez',     nivel:1, freq:2, tel:'11-5555-0004', email:'jorge@mail.com',   color:'blue',   desde:hoy, club:'AERA' });
+        at.add({ nombre:'Sofía Ruiz',      nivel:0, freq:1, tel:'11-5555-0005', email:'sofia@mail.com',   color:'coral',  desde:hoy, club:'FIRST' });
         const ct = t.objectStore('clases');
         ct.add({ titulo:'Grupo Intermedio A', fecha:hoy,       hora:'10:00', dur:90, cancha:'Cancha 2', tipo:'grupal',     alumnoId:null, estado:'confirmada', notas:'' });
         ct.add({ titulo:'Clase Individual',   fecha:hoy,       hora:'15:30', dur:60, cancha:'Cancha 1', tipo:'individual', alumnoId:1,    estado:'pendiente',  notas:'' });
@@ -402,7 +414,14 @@ const DB = (() => {
 /* ═══════════════════════════════════════════════════════════════════
    STATE
 ═══════════════════════════════════════════════════════════════════ */
-let S = { tab:'inicio', alumnos:[], clases:[], pagos:[], notas:[], config:{}, calDate: new Date() };
+let S = { tab:'inicio', alumnos:[], clases:[], pagos:[], notas:[], config:{}, calDate: new Date(), club:'FIRST' };
+
+function setClub(club) {
+  S.club = club;
+  document.querySelectorAll('.club-tab').forEach(t => t.classList.toggle('on', t.dataset.club===club));
+  const renders = { inicio:rInicio, alumnos:rAlumnos, clases:rClases, pagos:rPagos, notifs:rNotifs };
+  (renders[S.tab] || rInicio)();
+}
 
 async function loadAll() {
   const [a,c,p,n,cfg] = await Promise.all([
@@ -501,9 +520,10 @@ function goTab(tab) {
 ═══════════════════════════════════════════════════════════════════ */
 function rInicio() {
   const hoy = fmt(new Date());
-  const clasesHoy = S.clases.filter(c=>c.fecha===hoy).sort((a,b)=>a.hora.localeCompare(b.hora));
-  const pagadoTotal = S.pagos.filter(p=>p.estado==='pagado').reduce((s,p)=>s+p.monto,0);
-  const pendientes  = S.pagos.filter(p=>p.estado!=='pagado');
+  const clubAlumnos = S.alumnos.filter(a=>(a.club||'FIRST')===S.club).map(a=>a.id);
+  const clasesHoy = S.clases.filter(c=>c.fecha===hoy && (!c.alumnoId || clubAlumnos.includes(c.alumnoId))).sort((a,b)=>a.hora.localeCompare(b.hora));
+  const pagadoTotal = S.pagos.filter(p=>p.estado==='pagado' && clubAlumnos.includes(p.alumnoId)).reduce((s,p)=>s+p.monto,0);
+  const pendientes  = S.pagos.filter(p=>p.estado!=='pagado' && clubAlumnos.includes(p.alumnoId));
   const prox = clasesHoy[0];
 
   const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -544,15 +564,15 @@ function rInicio() {
 
   document.getElementById('sec-inicio').innerHTML = `
     <div class="hero">
-      <div class="hero-label">Clases este mes</div>
-      <div class="hero-val">${S.clases.filter(c=>c.fecha.startsWith(hoy.slice(0,7))).length}</div>
-      <div class="hero-sub">${S.alumnos.length} alumnos activos · ${clasesHoy.length} clase${clasesHoy.length!==1?'s':''} hoy</div>
+      <div class="hero-label">Club ${S.club} · Clases este mes</div>
+      <div class="hero-val">${S.clases.filter(c=>c.fecha.startsWith(hoy.slice(0,7)) && (!c.alumnoId || clubAlumnos.includes(c.alumnoId))).length}</div>
+      <div class="hero-sub">${clubAlumnos.length} alumnos activos · ${clasesHoy.length} clase${clasesHoy.length!==1?'s':''} hoy</div>
     </div>
     <div class="metrics">
       <div class="met"><div class="met-lbl">Cobrado</div><div class="met-val">${fmtMoney(pagadoTotal)}</div><div class="met-sub">este mes</div></div>
       <div class="met"><div class="met-lbl">Pendientes</div><div class="met-val">${pendientes.length}</div><div class="met-sub ${pendientes.length?'warn':''}">por cobrar</div></div>
       <div class="met"><div class="met-lbl">Próxima clase</div><div class="met-val" style="font-size:18px">${prox?prox.hora:'—'}</div><div class="met-sub">${prox?prox.titulo:'Sin clases hoy'}</div></div>
-      <div class="met"><div class="met-lbl">Alumnos</div><div class="met-val">${S.alumnos.length}</div><div class="met-sub">activos</div></div>
+      <div class="met"><div class="met-lbl">Alumnos</div><div class="met-val">${clubAlumnos.length}</div><div class="met-sub">en ${S.club}</div></div>
     </div>
     <div class="t-sec">Actividad semanal</div>
     <div class="card"><div class="chart">${bars}</div></div>
@@ -566,7 +586,8 @@ function rInicio() {
    ALUMNOS
 ═══════════════════════════════════════════════════════════════════ */
 function rAlumnos(q='') {
-  const filtered = q ? S.alumnos.filter(a=>a.nombre.toLowerCase().includes(q.toLowerCase())) : S.alumnos;
+  const byClub = S.alumnos.filter(a => (a.club||'FIRST') === S.club);
+  const filtered = q ? byClub.filter(a=>a.nombre.toLowerCase().includes(q.toLowerCase())) : byClub;
   const rows = filtered.map(al => {
     const p = S.pagos.filter(x=>x.alumnoId===al.id).sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
     const est = p ? p.estado : null;
@@ -580,12 +601,24 @@ function rAlumnos(q='') {
     </div>`;
   }).join('') || '<p class="empty">Sin resultados</p>';
 
+  const canImport = 'contacts' in navigator && 'ContactsManager' in window;
+  const importBtn = canImport
+    ? `<button class="btn-outline" id="btn-import-contacts" onclick="importarContactos()" style="margin-bottom:10px">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        Importar desde agenda
+      </button>`
+    : `<button class="btn-outline" style="margin-bottom:10px;opacity:.5;cursor:not-allowed" title="Solo disponible en Android/Chrome">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        Importar desde agenda <span style="font-size:10px">(requiere Chrome/Android)</span>
+      </button>`;
+
   document.getElementById('sec-alumnos').innerHTML = `
     <div class="search">
       <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="search" placeholder="Buscar alumno..." value="${q}" oninput="rAlumnos(this.value)" id="buscar-input">
     </div>
-    <div class="t-sec">${S.alumnos.length} alumnos</div>
+    ${importBtn}
+    <div class="t-sec">${filtered.length} alumno${filtered.length!==1?'s':''} · Club ${S.club}</div>
     <div class="card-flush">${rows}</div>
   `;
   document.getElementById('fab').onclick = () => formAlumno();
@@ -622,7 +655,7 @@ async function verAlumno(id) {
       ${avatarHtml(al,'lg')}
       <div class="pcard-info">
         <div class="pcard-name">${al.nombre}</div>
-        <div class="pcard-sub"><span class="lvl-p ${NIVEL_CLS[al.nivel]}">${NIVELES[al.nivel]}</span></div>
+        <div class="pcard-sub"><span class="lvl-p ${NIVEL_CLS[al.nivel]}">${NIVELES[al.nivel]}</span> <span class="club-tag ${(al.club||'FIRST').toLowerCase()}">${al.club||'FIRST'}</span></div>
       </div>
       <div class="pcard-actions">
         <button class="btn-icon" onclick="formAlumno(${id})" title="Editar">✏️</button>
@@ -816,9 +849,12 @@ function formAlumno(id) {
   const al = id ? S.alumnos.find(a=>a.id===id) : null;
   const colorOpts = Object.keys(COLORES).map(c=>`<option value="${c}" ${al&&al.color===c?'selected':''}>${c}</option>`).join('');
   const nivelOpts = NIVELES.map((n,i)=>`<option value="${i}" ${al&&al.nivel===i?'selected':''}>${n}</option>`).join('');
+  const clubOpts = ['FIRST','AERA'].map(c=>`<option value="${c}" ${(al?al.club:S.club)===c?'selected':''}>${c}</option>`).join('');
   openModal(al?'Editar alumno':'Nuevo alumno', `
     <label>Nombre completo</label>
     <input type="text" id="f-nombre" value="${al?al.nombre:''}" placeholder="Ej: Martina López">
+    <label>Club</label>
+    <select id="f-club">${clubOpts}</select>
     <label>Nivel</label>
     <select id="f-nivel">${nivelOpts}</select>
     <label>Clases por semana</label>
@@ -832,12 +868,50 @@ function formAlumno(id) {
   `, async () => {
     const nombre = $v('f-nombre').trim();
     if (!nombre) { toast('Ingresá un nombre','err'); return; }
-    const data = { nombre, nivel:$i('f-nivel'), freq:$i('f-freq')||1, tel:$v('f-tel').trim(), email:$v('f-email').trim(), color:$v('f-color'), desde: al?al.desde:fmt(new Date()) };
+    const data = { nombre, club:$v('f-club'), nivel:$i('f-nivel'), freq:$i('f-freq')||1, tel:$v('f-tel').trim(), email:$v('f-email').trim(), color:$v('f-color'), desde: al?al.desde:fmt(new Date()) };
     if (al) { data.id=id; await DB.put('alumnos',data); }
     else await DB.add('alumnos',data);
     await loadAll(); closeModal(); toast(al?'Alumno actualizado':'Alumno agregado');
     rAlumnos();
   });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   IMPORT CONTACTS
+═══════════════════════════════════════════════════════════════════ */
+async function importarContactos() {
+  if (!('contacts' in navigator && 'ContactsManager' in window)) {
+    toast('Tu dispositivo no soporta esta función','err'); return;
+  }
+  try {
+    const props = ['name','tel','email'];
+    const supported = await navigator.contacts.getProperties();
+    const toRequest = props.filter(p=>supported.includes(p));
+    const contacts  = await navigator.contacts.select(toRequest, { multiple: true });
+    if (!contacts || contacts.length === 0) { toast('No se seleccionaron contactos'); return; }
+
+    let added = 0, skipped = 0;
+    const existing = S.alumnos.map(a=>a.nombre.toLowerCase());
+    const hoy = fmt(new Date());
+    const coloresList = Object.keys(COLORES);
+
+    for (const c of contacts) {
+      const nombre = (c.name && c.name[0]) ? c.name[0].trim() : '';
+      if (!nombre) { skipped++; continue; }
+      if (existing.includes(nombre.toLowerCase())) { skipped++; continue; }
+      const tel   = (c.tel   && c.tel[0])   ? c.tel[0].trim()   : '';
+      const email = (c.email && c.email[0]) ? c.email[0].trim() : '';
+      const color = coloresList[Math.floor(Math.random()*coloresList.length)];
+      await DB.add('alumnos', { nombre, club:S.club, nivel:0, freq:2, tel, email, color, desde:hoy });
+      added++;
+    }
+    await loadAll();
+    if (added > 0) toast(`✅ ${added} alumno${added!==1?'s':''} importado${added!==1?'s':''}`);
+    else toast(skipped>0 ? 'Todos ya estaban en la lista' : 'Sin contactos nuevos');
+    rAlumnos();
+  } catch(e) {
+    if (e.name !== 'AbortError') toast('Error al acceder a la agenda','err');
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1082,10 +1156,10 @@ async function boot() {
 }
 
 // Expose globals for inline handlers
-window.rAlumnos=rAlumnos; window.verAlumno=verAlumno; window.formAlumno=formAlumno; window.eliminarAlumno=eliminarAlumno;
+window.rAlumnos=rAlumnos; window.verAlumno=verAlumno; window.formAlumno=formAlumno; window.eliminarAlumno=eliminarAlumno; window.importarContactos=importarContactos;
 window.verClase=verClase; window.formClase=formClase; window.formClaseEdit=formClaseEdit; window.eliminarClase=eliminarClase; window.rClases=rClases;
 window.editarPago=editarPago; window.formPago=formPago; window.eliminarPago=eliminarPago;
-window.formProgreso=formProgreso; window.closeModal=closeModal; window.toggleCfg=toggleCfg;
+window.formProgreso=formProgreso; window.closeModal=closeModal; window.toggleCfg=toggleCfg; window.setClub=setClub;
 
 document.addEventListener('DOMContentLoaded', boot);
 </script>
