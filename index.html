@@ -1504,7 +1504,82 @@ const GCAL = (() => {
     }
   }
 
+  // ── Importar eventos de GCal → app ──────────────────────────────
+  async function importFromGCal() {
+    if (!accessToken) { toast('Conectá Google Calendar primero', 'err'); return; }
+    setImporting(true);
+    try {
+      if (!dedicatedCalId) await ensureDedicatedCalendar();
+      const events = await fetchExistingEvents();
+
+      // IDs ya existentes en la app (para no duplicar)
+      const existingIds = new Set(S.clases.map(c => c.id));
+
+      // Eventos del calendario que NO tienen tag padelcoach → son externos
+      // Eventos con tag → ya fueron creados desde la app, los saltamos
+      const externos = events.filter(ev => {
+        const desc = ev.description || '';
+        return !desc.includes(`[${GCAL_EVENT_TAG}:`);
+      });
+
+      let imported = 0;
+      for (const ev of externos) {
+        if (!ev.start?.dateTime && !ev.start?.date) continue;
+
+        const startDt = new Date(ev.start.dateTime || ev.start.date);
+        const endDt   = new Date(ev.end?.dateTime || ev.end?.date || startDt);
+        const dur     = Math.round((endDt - startDt) / 60000) || 60;
+        const pad     = n => String(n).padStart(2,'0');
+        const fecha   = `${startDt.getFullYear()}-${pad(startDt.getMonth()+1)}-${pad(startDt.getDate())}`;
+        const hora    = `${pad(startDt.getHours())}:${pad(startDt.getMinutes())}`;
+        const titulo  = (ev.summary || 'Clase importada').replace(/^🎾\s*/, '');
+
+        // Verificar si ya existe una clase en la app con la misma fecha y hora
+        const yaExiste = S.clases.some(c => c.fecha === fecha && c.hora === hora);
+        if (yaExiste) continue;
+
+        const nuevaClase = {
+          titulo,
+          fecha,
+          hora,
+          dur,
+          cancha: ev.location || 'Cancha 1',
+          tipo: 'clase',
+          alumnoId: null,
+          estado: 'confirmada',
+          notas: (ev.description || '').replace(/\n?\[.*?\]/g, '').trim(),
+          gcal_imported: ev.id  // guardamos el id de gcal para referencia
+        };
+
+        await DB.add('clases', nuevaClase);
+        imported++;
+      }
+
+      if (imported > 0) {
+        await loadAll();
+        toast(`✓ ${imported} clase${imported>1?'s':''} importada${imported>1?'s':''} desde Google Calendar`, 'ok');
+        renderPanel();
+      } else {
+        toast('No hay clases nuevas para importar', 'ok');
+      }
+    } catch(e) {
+      console.error(e);
+      toast('Error al importar desde Google Calendar', 'err');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   // ── UI helpers ───────────────────────────────────────────────────
+  function setImporting(on) {
+    const btn = document.getElementById('gcal-import-btn');
+    if (!btn) return;
+    btn.disabled = on;
+    btn.innerHTML = on
+      ? '<div class="gcal-spinner"></div> Importando...'
+      : '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg> Importar clases desde Google Calendar';
+  }
+
   function setLoading(on) {
     const btn = document.getElementById('gcal-sync-btn');
     if (!btn) return;
@@ -1587,6 +1662,10 @@ const GCAL = (() => {
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
         Sincronizar todas las clases
       </button>
+      <button class="btn-sync" id="gcal-import-btn" onclick="GCAL.importFromGCal()" style="margin-top:8px;background:var(--c3);color:var(--c8)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+        Importar clases desde Google Calendar
+      </button>
       <div style="font-size:11px;color:var(--c5);text-align:center;margin-top:10px;line-height:1.5">
         Solo opera sobre el calendario <strong style="color:var(--c7)">"${CAL_NAME}"</strong>.<br>
         Tus eventos personales no serán modificados.
@@ -1624,7 +1703,8 @@ const GCAL = (() => {
       renderPanel();
     },
     syncAll,
-    syncOne
+    syncOne,
+    importFromGCal
   };
 })();
 
