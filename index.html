@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0a0a0a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>PadelCoach</title>
+<title>PadelConEmmanuel</title>
 <style>
 /* ─── RESET & TOKENS ─────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -282,7 +282,7 @@ h2{font-size:20px;font-weight:700;color:var(--cw);letter-spacing:-.3px}
   <header class="hdr">
     <div class="hdr-row">
       <div>
-        <div class="hdr-logo">Padel<span>Coach</span></div>
+        <div class="hdr-logo">PadelCon<span>Emmanuel</span></div>
         <div class="hdr-date" id="hdr-date"></div>
       </div>
       <div class="hdr-av" id="hdr-av">EP</div>
@@ -359,7 +359,7 @@ h2{font-size:20px;font-weight:700;color:var(--cw);letter-spacing:-.3px}
 
 <!-- INSTALL BANNER -->
 <div id="ibanner">
-  <span>📲 Instalar PadelCoach en tu celular</span>
+  <span>📲 Instalar PadelConEmmanuel en tu celular</span>
   <button id="ibtn">Instalar</button>
   <button id="iclose">✕</button>
 </div>
@@ -531,7 +531,9 @@ function toast(msg, tipo='ok') {
 function openModal(title, body, onSave) {
   document.getElementById('mtitle').textContent = title;
   document.getElementById('mbody').innerHTML = body;
-  document.getElementById('msave').onclick = onSave;
+  const msave = document.getElementById('msave');
+  msave.onclick = onSave;
+  msave.style.display = onSave ? 'block' : 'none';
   document.getElementById('moverlay').classList.add('on');
 }
 function closeModal() { document.getElementById('moverlay').classList.remove('on'); }
@@ -1351,10 +1353,8 @@ async function boot() {
 
 async function initGCalAuto() {
   try {
-    // Carga token guardado en session sin abrir el panel
-    const saved = JSON.parse(sessionStorage.getItem('gcal_token') || 'null');
+    const saved = JSON.parse(localStorage.getItem('gcal_token') || 'null');
     if (saved && saved.exp > Date.now()) {
-      // Hay sesión activa → importar silenciosamente
       await new Promise(res => {
         if (window.google?.accounts) { res(); return; }
         const s = document.createElement('script');
@@ -1362,7 +1362,8 @@ async function initGCalAuto() {
         s.onload = res; s.onerror = res;
         document.head.appendChild(s);
       });
-      GCAL.importFromGCal().catch(()=>{});
+      // Pequeña espera para que GCAL esté listo
+      setTimeout(() => GCAL.importFromGCal().catch(()=>{}), 1500);
     }
   } catch(e) {}
 }
@@ -1536,14 +1537,14 @@ const GCAL = (() => {
     if (resp.error) { toast('Error al conectar con Google', 'err'); renderPanel(); return; }
     accessToken = resp.access_token;
     const exp = Date.now() + (resp.expires_in - 60) * 1000;
-    sessionStorage.setItem('gcal_token', JSON.stringify({ token: accessToken, exp }));
+    localStorage.setItem('gcal_token', JSON.stringify({ token: accessToken, exp }));
     Promise.all([fetchUserInfo(), ensureDedicatedCalendar()])
-      .then(() => renderPanel());
+      .then(() => { renderPanel(); GCAL.importFromGCal().catch(()=>{}); });
   }
 
   function loadToken() {
     try {
-      const saved = JSON.parse(sessionStorage.getItem('gcal_token') || 'null');
+      const saved = JSON.parse(localStorage.getItem('gcal_token') || 'null');
       if (saved && saved.exp > Date.now()) { accessToken = saved.token; return true; }
     } catch(e) {}
     accessToken = null;
@@ -1553,16 +1554,16 @@ const GCAL = (() => {
   async function fetchUserInfo() {
     try {
       userInfo = await apiFetch('https://www.googleapis.com/oauth2/v2/userinfo');
-      sessionStorage.setItem('gcal_user', JSON.stringify(userInfo));
+      localStorage.setItem('gcal_user', JSON.stringify(userInfo));
     } catch(e) {}
   }
 
   function loadUserInfo() {
-    try { userInfo = JSON.parse(sessionStorage.getItem('gcal_user') || 'null'); } catch(e) {}
+    try { userInfo = JSON.parse(localStorage.getItem('gcal_user') || 'null'); } catch(e) {}
   }
 
   function loadCalId() {
-    dedicatedCalId = sessionStorage.getItem('gcal_cal_id') || null;
+    dedicatedCalId = localStorage.getItem('gcal_cal_id') || null;
   }
 
   // ── API helper ───────────────────────────────────────────────────
@@ -1593,7 +1594,7 @@ const GCAL = (() => {
     const existing = (list.items || []).find(c => c.summary === CAL_NAME);
     if (existing) {
       dedicatedCalId = existing.id;
-      sessionStorage.setItem('gcal_cal_id', dedicatedCalId);
+      localStorage.setItem('gcal_cal_id', dedicatedCalId);
       return;
     }
     // 2. No existe → crearlo. Esto crea un calendario nuevo, separado del primario.
@@ -1606,7 +1607,7 @@ const GCAL = (() => {
       })
     });
     dedicatedCalId = created.id;
-    sessionStorage.setItem('gcal_cal_id', dedicatedCalId);
+    localStorage.setItem('gcal_cal_id', dedicatedCalId);
   }
 
   // ── Construir evento Google Calendar ─────────────────────────────
@@ -1911,9 +1912,9 @@ const GCAL = (() => {
     logout() {
       const tok = accessToken;
       accessToken = null; userInfo = null; dedicatedCalId = null;
-      sessionStorage.removeItem('gcal_token');
-      sessionStorage.removeItem('gcal_user');
-      sessionStorage.removeItem('gcal_cal_id');
+      localStorage.removeItem('gcal_token');
+      localStorage.removeItem('gcal_user');
+      localStorage.removeItem('gcal_cal_id');
       if (window.google?.accounts?.oauth2 && tok) google.accounts.oauth2.revoke(tok, ()=>{});
       renderPanel();
     },
