@@ -1904,14 +1904,9 @@ const GCAL = (() => {
         <div class="gcal-section-title">Próximas clases · ${upcoming.length} de ${S.clases.length} total</div>
         <div class="card-flush">${eventRows}</div>
       </div>
-      <button class="btn-sync" id="gcal-sync-btn" onclick="GCAL.syncAll()">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-        Sincronizar todas las clases
-      </button>
-      <button class="btn-sync" id="gcal-import-btn" onclick="GCAL.importFromGCal()" style="margin-top:8px;background:var(--c3);color:var(--c8)">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-        Importar clases desde Google Calendar
-      </button>
+      <div id="gcal-sync-status" style="text-align:center;font-size:13px;color:var(--c7);margin-top:12px;padding:10px;background:var(--c2);border-radius:10px">
+        🔄 Sincronización automática activa
+      </div>
       <div style="font-size:11px;color:var(--c5);text-align:center;margin-top:10px;line-height:1.5">
         Solo opera sobre el calendario <strong style="color:var(--c7)">"${CAL_NAME}"</strong>.<br>
         Tus eventos personales no serán modificados.
@@ -1930,8 +1925,19 @@ const GCAL = (() => {
       }
       document.getElementById('gcal-panel').classList.add('on');
       renderPanel();
-      // Auto-importar al abrir el panel
-      if (accessToken) importFromGCal().catch(()=>{});
+      // Auto-sincronizar en ambas direcciones al abrir
+      if (accessToken) {
+        const status = document.getElementById('gcal-sync-status');
+        if (status) status.innerHTML = '🔄 Sincronizando...';
+        try {
+          await Promise.all([syncAll(), importFromGCal()]);
+          await loadAll();
+          renderPanel(true);
+          if (status) status.innerHTML = '✅ Sincronizado correctamente';
+        } catch(e) {
+          if (status) status.innerHTML = '⚠️ Error al sincronizar';
+        }
+      }
     },
     login() {
       if (!gapiReady) {
@@ -2216,3 +2222,4 @@ document.addEventListener('DOMContentLoaded', boot);
 </script>
 </body>
 </html>
+ 
