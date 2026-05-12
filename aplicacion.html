@@ -1810,7 +1810,7 @@ function rNotifs() {
     `<div class="card">` +
     `<p style="font-size:13px;color:var(--t1);margin-bottom:12px;line-height:1.5">Tus datos viven en este navegador. Exportá un backup para no perder nada si cambiás de teléfono o limpiás el caché.</p>` +
     `<div style="font-size:11.5px;color:var(--c6);margin-bottom:14px;padding:8px 12px;background:var(--s3);border-radius:10px">📁 ${backupInfo} · ${S.alumnos.length} alumnos · ${S.clases.length} clases · ${S.pagos.length} pagos</div>` +
-    `<button class="btn-green" id="btn-backup-drive" onclick="exportarBackupDrive()" style="margin-bottom:8px">☁️ Guardar en Google Drive</button>` +
+    `<button class="btn-green" id="btn-backup-drive" onclick="exportarBackupDrive()" style="margin-bottom:8px">☁️ Guardar en Drive + Email</button>` +
     `<button class="btn-outline" onclick="document.getElementById('import-file').click()">⬆️ Restaurar backup</button>` +
     `<input type="file" id="import-file" accept=".json" style="display:none" onchange="importarBackup(this)">` +
     `</div>`;
@@ -2051,6 +2051,59 @@ function formProgreso(alumnoId) {
   });
 }
 
+async function enviarBackupPorEmail(token, fileContent, fileName) {
+  try {
+    const destinatario = 'sanzemmanuel@gmail.com';
+    const hoy = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
+    const fileBase64 = btoa(unescape(encodeURIComponent(fileContent)));
+
+    const emailLines = [
+      `To: ${destinatario}`,
+      'Content-Type: multipart/mixed; boundary="backup_boundary_padel"',
+      'MIME-Version: 1.0',
+      `Subject: =?UTF-8?B?${btoa('🎾 Backup PadelConEmmanuel – ' + hoy)}?=`,
+      '',
+      '--backup_boundary_padel',
+      'Content-Type: text/html; charset=UTF-8',
+      '',
+      `<h2 style="color:#00a878;font-family:sans-serif">🎾 Backup PadelConEmmanuel</h2>` +
+      `<p style="font-family:sans-serif;color:#333">Backup automático generado el <strong>${hoy}</strong>.</p>` +
+      `<p style="font-family:sans-serif;color:#555">📊 Datos incluidos: <strong>${S.alumnos.length} alumnos</strong> · <strong>${S.clases.length} clases</strong> · <strong>${S.pagos.length} pagos</strong></p>` +
+      `<p style="font-family:sans-serif;color:#888;font-size:12px">Este archivo fue guardado también en Google Drive.</p>`,
+      '',
+      '--backup_boundary_padel',
+      `Content-Type: application/json; name="${fileName}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${fileName}"`,
+      '',
+      fileBase64,
+      '--backup_boundary_padel--'
+    ].join('\r\n');
+
+    const encodedEmail = btoa(unescape(encodeURIComponent(emailLines)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+    const gmailRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ raw: encodedEmail })
+    });
+
+    if (!gmailRes.ok) {
+      const err = await gmailRes.json().catch(() => ({}));
+      console.warn('Gmail send error:', err);
+      return false;
+    }
+    return true;
+  } catch(e) {
+    console.warn('Error enviando email:', e);
+    return false;
+  }
+}
+
 async function exportarBackupDrive() {
   if (window._driveUploading) return;
   window._driveUploading = true;
@@ -2065,12 +2118,14 @@ async function exportarBackupDrive() {
   const fileContent = JSON.stringify(backup, null, 2);
   const fileName = `PadelConEmmanuel_backup_${hoy}.json`;
 
-  // Si tiene token OAuth de Google Calendar, usarlo para Drive API directamente
+  // Si tiene token OAuth de Google Calendar, usarlo para Drive API + Gmail
   const saved = JSON.parse(localStorage.getItem('gcal_token') || 'null');
   const token = saved && saved.exp > Date.now() ? saved.token : null;
 
   if (token) {
     try {
+      if (btn) btn.textContent = '☁️ Subiendo a Drive...';
+
       // Buscar si ya existe un backup previo para sobreescribirlo
       const q = encodeURIComponent("name contains 'PadelConEmmanuel_backup' and trashed=false");
       const searchRes = await fetch(
@@ -2103,8 +2158,17 @@ async function exportarBackupDrive() {
 
       if (!uploadRes.ok) throw new Error(String(uploadRes.status));
       localStorage.setItem('ultimo_backup', Date.now().toString());
-      toast('✅ Backup guardado en Google Drive');
+
+      // Enviar por email también
+      if (btn) btn.textContent = '📧 Enviando email...';
+      const emailOk = await enviarBackupPorEmail(token, fileContent, fileName);
+
       rNotifs();
+      if (emailOk) {
+        toast('✅ Backup en Drive + email enviado a sanzemmanuel@gmail.com');
+      } else {
+        toast('✅ Backup en Drive (email requiere permiso Gmail)');
+      }
       return;
     } catch(e) {
       console.error('Drive upload error:', e);
@@ -2123,7 +2187,7 @@ async function exportarBackupDrive() {
   rNotifs();
 
   window._driveUploading = false;
-  if (btn) { btn.disabled = false; btn.innerHTML = '☁️ Guardar en Google Drive'; }
+  if (btn) { btn.disabled = false; btn.innerHTML = '☁️ Guardar en Drive + Email'; }
 }
 // patch: reset flag on return paths above
 const _origExportarBackupDrive = exportarBackupDrive;
@@ -2132,7 +2196,7 @@ window.exportarBackupDrive = async function() {
   finally {
     window._driveUploading = false;
     const b = document.getElementById('btn-backup-drive');
-    if (b) { b.disabled = false; b.innerHTML = '☁️ Guardar en Google Drive'; }
+    if (b) { b.disabled = false; b.innerHTML = '☁️ Guardar en Drive + Email'; }
   }
 };
 
