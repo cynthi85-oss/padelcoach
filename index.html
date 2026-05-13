@@ -1810,7 +1810,7 @@ function rNotifs() {
     `<div class="card">` +
     `<p style="font-size:13px;color:var(--t1);margin-bottom:12px;line-height:1.5">Tus datos viven en este navegador. Exportá un backup para no perder nada si cambiás de teléfono o limpiás el caché.</p>` +
     `<div style="font-size:11.5px;color:var(--c6);margin-bottom:14px;padding:8px 12px;background:var(--s3);border-radius:10px">📁 ${backupInfo} · ${S.alumnos.length} alumnos · ${S.clases.length} clases · ${S.pagos.length} pagos</div>` +
-    `<button class="btn-green" id="btn-backup-drive" onclick="exportarBackupDrive()" style="margin-bottom:8px">☁️ Guardar en Drive + Email</button>` +
+    `<button class="btn-green" id="btn-backup-drive" onclick="exportarBackupDrive()" style="margin-bottom:8px">📲 Backup + compartir por WhatsApp</button>` +
     `<button class="btn-outline" onclick="document.getElementById('import-file').click()">⬆️ Restaurar backup</button>` +
     `<input type="file" id="import-file" accept=".json" style="display:none" onchange="importarBackup(this)">` +
     `</div>`;
@@ -2051,195 +2051,47 @@ function formProgreso(alumnoId) {
   });
 }
 
-async function enviarBackupPorEmail(token, fileContent, fileName) {
-  try {
-    const destinatario = 'sanzemmanuel@gmail.com';
-    const hoy = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
-    const fileBase64 = btoa(unescape(encodeURIComponent(fileContent)));
-
-    const emailLines = [
-      `To: ${destinatario}`,
-      'Content-Type: multipart/mixed; boundary="backup_boundary_padel"',
-      'MIME-Version: 1.0',
-      `Subject: =?UTF-8?B?${btoa('🎾 Backup PadelConEmmanuel – ' + hoy)}?=`,
-      '',
-      '--backup_boundary_padel',
-      'Content-Type: text/html; charset=UTF-8',
-      '',
-      `<h2 style="color:#00a878;font-family:sans-serif">🎾 Backup PadelConEmmanuel</h2>` +
-      `<p style="font-family:sans-serif;color:#333">Backup automático generado el <strong>${hoy}</strong>.</p>` +
-      `<p style="font-family:sans-serif;color:#555">📊 Datos incluidos: <strong>${S.alumnos.length} alumnos</strong> · <strong>${S.clases.length} clases</strong> · <strong>${S.pagos.length} pagos</strong></p>` +
-      `<p style="font-family:sans-serif;color:#888;font-size:12px">Este archivo fue guardado también en Google Drive.</p>`,
-      '',
-      '--backup_boundary_padel',
-      `Content-Type: application/json; name="${fileName}"`,
-      'Content-Transfer-Encoding: base64',
-      `Content-Disposition: attachment; filename="${fileName}"`,
-      '',
-      fileBase64,
-      '--backup_boundary_padel--'
-    ].join('\r\n');
-
-    const encodedEmail = btoa(unescape(encodeURIComponent(emailLines)))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-    const gmailRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ raw: encodedEmail })
-    });
-
-    if (!gmailRes.ok) {
-      const err = await gmailRes.json().catch(() => ({}));
-      console.warn('Gmail send error:', err);
-      return false;
-    }
-    return true;
-  } catch(e) {
-    console.warn('Error enviando email:', e);
-    return false;
-  }
-}
-
-async function _subirBackupConToken(token, fileContent, fileName, btn) {
-  if (btn) btn.textContent = '☁️ Subiendo a Drive...';
-  const q = encodeURIComponent("name contains 'PadelConEmmanuel_backup' and trashed=false");
-  const searchRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&orderBy=createdTime desc`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-
-  if (!searchRes.ok) {
-    const errBody = await searchRes.text().catch(() => '');
-    console.error(`Drive search error ${searchRes.status}:`, errBody);
-    throw new Error(String(searchRes.status));
-  }
-
-  const searchData = await searchRes.json();
-  const existing = searchData.files && searchData.files[0];
-
-  const boundary = '-------314159265358979323846';
-  const multipartBody =
-    `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n` +
-    JSON.stringify({ name: fileName, mimeType: 'application/json' }) +
-    `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n` +
-    fileContent + `\r\n--${boundary}--`;
-
-  const uploadRes = await fetch(
-    existing
-      ? `https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=multipart`
-      : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
-    {
-      method: existing ? 'PATCH' : 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': `multipart/related; boundary="-------314159265358979323846"`
-      },
-      body: multipartBody,
-    }
-  );
-  if (!uploadRes.ok) {
-    const errBody = await uploadRes.text().catch(() => '');
-    console.error(`Drive upload error ${uploadRes.status}:`, errBody);
-    throw new Error(String(uploadRes.status));
-  }
-  return true;
-}
-
 async function exportarBackupDrive() {
-  if (window._driveUploading) return;
-  window._driveUploading = true;
-  const btn = document.getElementById('btn-backup-drive');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Preparando...'; }
-
   const hoy = new Date().toISOString().split('T')[0];
+  const fechaLinda = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
   const backup = {
     version: 1, fecha: new Date().toISOString(),
     alumnos: S.alumnos, clases: S.clases, pagos: S.pagos, notas: S.notas, config: S.config,
   };
   const fileContent = JSON.stringify(backup, null, 2);
   const fileName = `PadelConEmmanuel_backup_${hoy}.json`;
+  const blob = new Blob([fileContent], { type: 'application/json' });
+  const file = new File([blob], fileName, { type: 'application/json' });
 
-  async function subirDrive(token) {
-    if (btn) btn.textContent = '☁️ Subiendo a Drive...';
-    const q = encodeURIComponent("name contains 'PadelConEmmanuel_backup' and trashed=false");
-    const searchRes = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&orderBy=createdTime desc`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (!searchRes.ok) throw new Error(String(searchRes.status));
-    const { files = [] } = await searchRes.json();
-    const existing = files[0];
+  const textoMsg =
+    `🎾 *Backup PadelConEmmanuel*\n` +
+    `📅 ${fechaLinda}\n` +
+    `👤 ${S.alumnos.length} alumnos · 📋 ${S.clases.length} clases · 💰 ${S.pagos.length} pagos`;
 
-    const boundary = 'boundary_padel_2026';
-    const body =
-      `--${boundary}\r\nContent-Type: application/json\r\n\r\n` +
-      JSON.stringify({ name: fileName, mimeType: 'application/json' }) +
-      `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n` +
-      fileContent + `\r\n--${boundary}--`;
+  localStorage.setItem('ultimo_backup', Date.now().toString());
+  rNotifs();
 
-    const uploadRes = await fetch(
-      existing
-        ? `https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=multipart`
-        : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`,
-      {
-        method: existing ? 'PATCH' : 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': `multipart/related; boundary="${boundary}"`
-        },
-        body
-      }
-    );
-    if (!uploadRes.ok) {
-      const txt = await uploadRes.text().catch(() => '');
-      console.error('Drive upload error', uploadRes.status, txt);
-      throw new Error(String(uploadRes.status));
-    }
-    return true;
-  }
-
-  try {
-    // Usar el tokenClient global de GCAL (ya inicializado y con todos los scopes)
-    if (btn) btn.textContent = '🔑 Conectando con Google...';
+  // En celular: Web Share API comparte el archivo directo a WhatsApp u otra app
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
-      await GCAL.ensureToken(false);
+      await navigator.share({ title: '🎾 Backup PadelConEmmanuel', text: textoMsg, files: [file] });
+      toast('✅ Backup compartido');
+      return;
     } catch(e) {
-      // Si falla silencioso, forzar consent
-      await GCAL.ensureToken(true);
+      if (e.name === 'AbortError') { toast('Compartir cancelado.'); return; }
+      // Si falla share con archivo, caer a descarga
     }
-
-    const token = GCAL.getToken();
-    if (!token) throw new Error('no_token');
-
-    await subirDrive(token);
-    localStorage.setItem('ultimo_backup', Date.now().toString());
-
-    if (btn) btn.textContent = '📧 Enviando email...';
-    const emailOk = await enviarBackupPorEmail(token, fileContent, fileName).catch(() => false);
-    rNotifs();
-    toast(emailOk
-      ? '✅ Backup en Drive + email enviado a sanzemmanuel@gmail.com'
-      : '✅ Backup guardado en Google Drive');
-
-  } catch(e) {
-    console.error('Backup error:', e.message);
-    // Fallback local
-    const blob = new Blob([fileContent], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = fileName; a.click();
-    URL.revokeObjectURL(url);
-    localStorage.setItem('ultimo_backup', Date.now().toString());
-    toast('📥 Backup descargado en tu dispositivo.');
-    rNotifs();
-  } finally {
-    window._driveUploading = false;
-    if (btn) { btn.disabled = false; btn.innerHTML = '☁️ Guardar en Drive + Email'; }
   }
+
+  // En PC o si falla: descargar + abrir WhatsApp con texto
+  const urlObj = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = urlObj; a.download = fileName; a.click();
+  URL.revokeObjectURL(urlObj);
+
+  const msg = encodeURIComponent(textoMsg + `\n\n📎 Archivo: *${fileName}* (guardado en Descargas)\nAdjuntalo a este chat para tenerlo en WhatsApp.`);
+  setTimeout(() => window.open(`https://wa.me/5491126620938?text=${msg}`, '_blank'), 700);
+  toast('📥 Backup descargado. Abriendo WhatsApp...');
 }
 
 function renderSemanaClases(selDate) {
@@ -2861,6 +2713,7 @@ const GCAL = (() => {
     },
     isConnected() { return !!accessToken; },
     getToken() { return accessToken; },
+    initGIS() { return initGIS(); },
     async ensureToken(force) { await ensureToken(force); },
     syncOne,
     deleteOne,
