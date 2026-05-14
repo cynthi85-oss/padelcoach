@@ -1084,7 +1084,7 @@ async function importarDesdeAgenda() {
       await loadAll();
       closeModal();
       rAlumnos();
-      toast(`✓ ${nombre} agregado`);
+      toast(`✓ ${nombre} agregado`); GSYNC.onDataChanged();
     });
     return;
   }
@@ -1357,7 +1357,7 @@ function saldarDeuda(alumnoId, claseId) {
   window._clasesNoPago = window._clasesNoPago.filter(r => !(r.alumnoId === alumnoId && r.claseId === claseId));
   localStorage.setItem('clases_nopago', JSON.stringify(window._clasesNoPago));
   rPagos();
-  toast('Deuda saldada ✓');
+  toast('Deuda saldada ✓'); GSYNC.onDataChanged();
 }
 window.saldarDeuda = saldarDeuda;
  
@@ -1602,7 +1602,7 @@ async function formClaseEdit(id) {
       estado:   document.getElementById('fce-estado').value,
       notas:    document.getElementById('fce-notas').value.trim(),
     });
-    await loadAll(); closeModal(); toast('Clase actualizada'); GSYNC.onDataChanged(); rClases(fecha); GSYNC.onDataChanged();
+    await loadAll(); closeModal(); toast('Clase actualizada'); GSYNC.onDataChanged(); rClases(fecha);
   });
 }
 
@@ -1888,7 +1888,7 @@ function formAlumno(id) {
     if (al) { data.id = id; await DB.put('alumnos', data); }
     else await DB.add('alumnos', data);
     await loadAll(); closeModal();
-    toast(al ? 'Alumno actualizado' : 'Alumno agregado');
+    toast(al ? 'Alumno actualizado' : 'Alumno agregado'); GSYNC.onDataChanged();
     rAlumnos();
   });
 }
@@ -1956,7 +1956,7 @@ function formClase(alumnoId) {
       await DB.add('clases', { ...claseBase, fecha: fmt(d) });
     }
     await loadAll(); closeModal();
-    toast(repetir > 0 ? `Clase creada × ${repetir+1} semanas` : 'Clase agregada');
+    toast(repetir > 0 ? `Clase creada × ${repetir+1} semanas` : 'Clase agregada'); GSYNC.onDataChanged();
     rClases(fecha);
     const clNueva = S.clases.find(c => c.id === newId);
     if (clNueva && GCAL.isConnected()) GCAL.syncOne(clNueva).catch(() => {});
@@ -3363,7 +3363,7 @@ const GSYNC = (() => {
     },
     // Trigger sync inmediata al guardar cambios locales
     onDataChanged() {
-      if (getToken() && !_syncing) setTimeout(() => sync(false), 1500);
+      if (getToken() && !_syncing) setTimeout(() => sync(false), 300);
     }
   };
 })();
