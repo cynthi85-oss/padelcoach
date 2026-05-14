@@ -1700,12 +1700,12 @@ function compartirResumen() {
 async function eliminarAlumno(id) {
   const ok = await confirm('¿Eliminar este alumno? Se borrarán también sus pagos y notas.');
   if (!ok) return;
-  // Si GCal está conectado, borrar eventos de las clases individuales de este alumno
-  if (GCAL.isConnected()) {
-    const clasesAlumno = S.clases.filter(c => c.alumnoId === id);
-    for (const cl of clasesAlumno) {
-      GCAL.deleteOne(cl).catch(() => {});
-    }
+  // Encolar borrados en GCal de las clases individuales del alumno
+  const clasesAlumno = S.clases.filter(c => c.alumnoId === id);
+  for (const cl of clasesAlumno) {
+    const gcalId = cl.gcal_event_id || cl.gcal_imported;
+    if (gcalId) GCAL.enqueuePendingDelete(gcalId);
+    if (GCAL.isConnected()) GCAL.deleteOne(cl).catch(() => {});
   }
   await DB.del('alumnos', id);
   const ps = S.pagos.filter(p => p.alumnoId === id);
@@ -1718,13 +1718,16 @@ async function eliminarAlumno(id) {
 async function eliminarClase(id) {
   const ok = await confirm('¿Eliminar esta clase?');
   if (!ok) return;
-  // Buscar la clase antes de borrarla para poder borrarla también en GCal
+  // Obtener la clase de memoria antes de borrar (necesitamos gcal_event_id)
   const clase = S.clases.find(c => c.id === id);
-  await DB.del('clases', id);
-  // Si GCal está conectado, borrar el evento correspondiente
-  if (clase && GCAL.isConnected()) {
-    GCAL.deleteOne(clase).catch(() => {});
+  // Encolar el borrado en GCal ANTES de eliminar de IndexedDB
+  if (clase) {
+    const gcalId = clase.gcal_event_id || clase.gcal_imported;
+    if (gcalId) GCAL.enqueuePendingDelete(gcalId);
+    // Intentar borrar inmediatamente si hay token activo
+    if (GCAL.isConnected()) GCAL.deleteOne(clase).catch(() => {});
   }
+  await DB.del('clases', id);
   await loadAll(); closeModal(); rClases(); toast('Clase eliminada');
 }
 
@@ -2431,6 +2434,18 @@ const GCAL = (() => {
     return data.items || [];
   }
 
+  // ── Cola de borrados pendientes ───────────────────────────────────
+  function enqueuePendingDelete(gcalEventId) {
+    if (!gcalEventId) return;
+    try {
+      const q = JSON.parse(localStorage.getItem('gcal_pending_deletes') || '[]');
+      if (!q.includes(gcalEventId)) { q.push(gcalEventId); localStorage.setItem('gcal_pending_deletes', JSON.stringify(q)); }
+    } catch(e) {}
+  }
+  function dequeuePendingDeletes() {
+    try { const q = JSON.parse(localStorage.getItem('gcal_pending_deletes') || '[]'); localStorage.removeItem('gcal_pending_deletes'); return q; } catch(e) { return []; }
+  }
+
   // ── SINCRONIZACIÓN BIDIRECCIONAL PRINCIPAL ────────────────────────
   // Esta función es la que resuelve todo. Corre al conectar, al abrir el panel,
   // al volver al foco, y cada 5 minutos si está conectado.
@@ -2438,8 +2453,20 @@ const GCAL = (() => {
     if (!accessToken) return;
     try {
       if (!dedicatedCalId) await ensureDedicatedCalendar();
-      const events = await fetchExistingEvents();
       const calEnc = encodeURIComponent(dedicatedCalId);
+
+      // ── 0. Procesar borrados pendientes (clases eliminadas sin conexión activa) ─
+      const pendingDeletes = dequeuePendingDeletes();
+      for (const gcalId of pendingDeletes) {
+        try {
+          await apiFetch(`https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${gcalId}`,
+            { method: 'DELETE' });
+        } catch(e) {
+          if (!e.message?.includes('404')) enqueuePendingDelete(gcalId);
+        }
+      }
+
+      const events = await fetchExistingEvents();
 
       // Mapa: tag [padelcoach:ID] → evento GCal
       const tagMap = {};      // tagMap['42'] = { id: gcalEventId, ... }
@@ -2586,28 +2613,43 @@ const GCAL = (() => {
 
   // ── deleteOne: al eliminar una clase en la app ────────────────────
   async function deleteOne(cl) {
-    if (!accessToken) return;
+    // Siempre encolar como respaldo (se procesa en próxima sync si falla ahora)
+    const gcalIdFast = cl.gcal_event_id || cl.gcal_imported;
+    if (gcalIdFast) enqueuePendingDelete(gcalIdFast);
+
+    if (!accessToken) return; // se procesará en la próxima sync
     try {
       if (!dedicatedCalId) await ensureDedicatedCalendar();
       const calEnc = encodeURIComponent(dedicatedCalId);
 
-      // Primero intentar con gcal_event_id (rápido, sin fetch extra)
-      let gcalId = cl.gcal_event_id || cl.gcal_imported;
+      let gcalId = gcalIdFast;
 
       if (!gcalId) {
         // Fallback: buscar por tag
         const events = await fetchExistingEvents();
         const found  = events.find(ev => (ev.description||'').includes(`[${TAG}:${cl.id}]`));
         gcalId = found?.id;
+        if (gcalId) enqueuePendingDelete(gcalId);
       }
 
       if (gcalId) {
         await apiFetch(`https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${gcalId}`,
           { method: 'DELETE' });
+        // Borrado exitoso: quitar de la cola
+        try {
+          const q = JSON.parse(localStorage.getItem('gcal_pending_deletes') || '[]');
+          localStorage.setItem('gcal_pending_deletes', JSON.stringify(q.filter(id => id !== gcalId)));
+        } catch(e) {}
       }
     } catch(e) {
-      // Si el evento ya no existe en GCal (404), no es un error real
-      if (!e.message?.includes('404')) console.error('deleteOne:', e);
+      // Si el evento ya no existe en GCal (404), limpiar la cola para ese id
+      if (e.message?.includes('404')) {
+        try {
+          const q = JSON.parse(localStorage.getItem('gcal_pending_deletes') || '[]');
+          localStorage.setItem('gcal_pending_deletes', JSON.stringify(q.filter(id => id !== gcalIdFast)));
+        } catch(_) {}
+      }
+      // En cualquier otro error, queda en la cola para la próxima sync
     }
   }
 
@@ -2730,6 +2772,7 @@ const GCAL = (() => {
     async ensureToken(force) { await ensureToken(force); },
     syncOne,
     deleteOne,
+    enqueuePendingDelete,
     importFromGCal: () => syncBidireccional(false),
     syncManual() { setLoading(true); syncBidireccional(true).finally(() => setLoading(false)); },
     ensureToken(forceConsent = false) { return ensureToken(forceConsent); },
