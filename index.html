@@ -2059,7 +2059,7 @@ async function exportarBackupDrive() {
     alumnos: S.alumnos, clases: S.clases, pagos: S.pagos, notas: S.notas, config: S.config,
   };
   const fileContent = JSON.stringify(backup, null, 2);
-  const fileName = `PadelConEmmanuel_backup_${hoy}.txt`;
+  const fileName = `PadelConEmmanuel_backup_${hoy}.json`;
   const blob = new Blob([fileContent], { type: 'text/plain' });
   const file = new File([blob], fileName, { type: 'text/plain' });
 
@@ -2070,6 +2070,12 @@ async function exportarBackupDrive() {
 
   localStorage.setItem('ultimo_backup', Date.now().toString());
   rNotifs();
+
+  // Siempre descargar localmente
+  const urlLocal = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = urlLocal; a.download = fileName; a.click();
+  URL.revokeObjectURL(urlLocal);
 
   // En celular: Web Share API comparte el archivo directo a WhatsApp u otra app
   console.log('canShare support:', !!navigator.canShare, 'canShare file:', navigator.canShare?.({ files: [file] }));
@@ -2084,12 +2090,7 @@ async function exportarBackupDrive() {
     }
   }
 
-  // En PC o si falla: descargar + abrir WhatsApp con texto
-  const urlObj = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = urlObj; a.download = fileName; a.click();
-  URL.revokeObjectURL(urlObj);
-
+  // En PC o si falla share: abrir WhatsApp con texto
   const msg = encodeURIComponent(textoMsg + `\n\n📎 Archivo: *${fileName}* (guardado en Descargas)\nAdjuntalo a este chat para tenerlo en WhatsApp.`);
   setTimeout(() => window.open(`https://wa.me/5491126620938?text=${msg}`, '_blank'), 700);
   toast('📥 Backup descargado. Abriendo WhatsApp...');
