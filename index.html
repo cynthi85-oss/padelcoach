@@ -2111,12 +2111,22 @@ async function subirBackupDrive() {
     const { fileName, blob } = _generarBackup();
     const fileContent = await blob.text();
 
-    // Obtener token de GCAL (ya inicializado en la app)
-    const token = GCAL.getToken();
-    if (!token) {
-      toast('⚠️ Iniciá sesión con Google Calendar primero');
-      return;
-    }
+    // Pedir token con scope de Drive explícitamente
+    const CLIENT_ID = '456704676078-kh72v2ar7jmjtpq9dj2pid5a77cr8obc.apps.googleusercontent.com';
+    const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
+    const token = await new Promise((resolve, reject) => {
+      if (!window.google?.accounts?.oauth2) { reject(new Error('gis_not_loaded')); return; }
+      const tc = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPE,
+        callback: (resp) => {
+          if (resp?.access_token) resolve(resp.access_token);
+          else reject(new Error(resp?.error || 'no_token'));
+        }
+      });
+      tc.requestAccessToken({ prompt: '' });
+    });
 
     // Buscar backup previo para sobreescribir
     const q = encodeURIComponent("name contains 'PadelConEmmanuel_backup' and trashed=false");
@@ -2154,8 +2164,8 @@ async function subirBackupDrive() {
     rNotifs();
     toast('✅ Backup guardado en Google Drive');
   } catch(e) {
-    console.error('Drive error:', e.message);
-    toast('❌ Error al subir a Drive: ' + e.message);
+    if (e.name === 'AbortError' || e.message === 'no_token') { toast('Cancelado.'); }
+    else { console.error('Drive error:', e.message); toast('❌ Error al subir a Drive: ' + e.message); }
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '☁️ Guardar en Google Drive'; }
   }
