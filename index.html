@@ -841,7 +841,6 @@ let filtroAlumnoClases = 0;
 async function boot() {
   initTheme();
   await loadAll();
-  GSYNC.init(); GCAL.init();
   // Registrar clicks en la barra de navegación
   document.querySelectorAll('.nav-i').forEach(n => {
     n.addEventListener('click', () => goTab(n.dataset.tab));
@@ -1084,7 +1083,7 @@ async function importarDesdeAgenda() {
       await loadAll();
       closeModal();
       rAlumnos();
-      toast(`✓ ${nombre} agregado`); GSYNC.onDataChanged();
+      toast(`✓ ${nombre} agregado`);
     });
     return;
   }
@@ -1357,7 +1356,7 @@ function saldarDeuda(alumnoId, claseId) {
   window._clasesNoPago = window._clasesNoPago.filter(r => !(r.alumnoId === alumnoId && r.claseId === claseId));
   localStorage.setItem('clases_nopago', JSON.stringify(window._clasesNoPago));
   rPagos();
-  toast('Deuda saldada ✓'); GSYNC.onDataChanged();
+  toast('Deuda saldada ✓');
 }
 window.saldarDeuda = saldarDeuda;
  
@@ -1602,7 +1601,7 @@ async function formClaseEdit(id) {
       estado:   document.getElementById('fce-estado').value,
       notas:    document.getElementById('fce-notas').value.trim(),
     });
-    await loadAll(); closeModal(); toast('Clase actualizada'); GSYNC.onDataChanged(); rClases(fecha);
+    await loadAll(); closeModal(); toast('Clase actualizada'); rClases(fecha);
   });
 }
 
@@ -1701,35 +1700,19 @@ function compartirResumen() {
 async function eliminarAlumno(id) {
   const ok = await confirm('¿Eliminar este alumno? Se borrarán también sus pagos y notas.');
   if (!ok) return;
-  // Encolar borrados en GCal de las clases individuales del alumno
-  const clasesAlumno = S.clases.filter(c => c.alumnoId === id);
-  for (const cl of clasesAlumno) {
-    const gcalId = cl.gcal_event_id || cl.gcal_imported;
-    if (gcalId) GCAL.enqueuePendingDelete(gcalId);
-    if (GCAL.isConnected()) GCAL.deleteOne(cl).catch(() => {});
-  }
   await DB.del('alumnos', id);
   const ps = S.pagos.filter(p => p.alumnoId === id);
   for (const p of ps) await DB.del('pagos', p.id);
   const ns = S.notas.filter(n => n.alumnoId === id);
   for (const n of ns) await DB.del('notas', n.id);
-  await loadAll(); closeModal(); rAlumnos(); toast('Alumno eliminado'); GSYNC.onDataChanged();
+  await loadAll(); closeModal(); rAlumnos(); toast('Alumno eliminado');
 }
 
 async function eliminarClase(id) {
   const ok = await confirm('¿Eliminar esta clase?');
   if (!ok) return;
-  // Obtener la clase de memoria antes de borrar (necesitamos gcal_event_id)
-  const clase = S.clases.find(c => c.id === id);
-  // Encolar el borrado en GCal ANTES de eliminar de IndexedDB
-  if (clase) {
-    const gcalId = clase.gcal_event_id || clase.gcal_imported;
-    if (gcalId) GCAL.enqueuePendingDelete(gcalId);
-    // Intentar borrar inmediatamente si hay token activo
-    if (GCAL.isConnected()) GCAL.deleteOne(clase).catch(() => {});
-  }
   await DB.del('clases', id);
-  await loadAll(); closeModal(); rClases(); toast('Clase eliminada'); GSYNC.onDataChanged();
+  await loadAll(); closeModal(); rClases(); toast('Clase eliminada');
 }
 
 async function eliminarPago(id) {
@@ -1737,7 +1720,7 @@ async function eliminarPago(id) {
   if (!ok) return;
   closeModal();
   await DB.del('pagos', id);
-  await loadAll(); toast('Pago eliminado'); rPagos(); GSYNC.onDataChanged();
+  await loadAll(); toast('Pago eliminado'); rPagos();
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1830,11 +1813,7 @@ function rNotifs() {
     `<button class="btn-green" id="btn-backup-drive" onclick="exportarBackupDrive()" style="margin-bottom:8px">📲 Backup + compartir por WhatsApp</button>` +
     `<button class="btn-outline" onclick="document.getElementById('import-file').click()">⬆️ Restaurar backup</button>` +
     `<input type="file" id="import-file" accept=".json" style="display:none" onchange="importarBackup(this)">` +
-    `</div>` +
-    `<div class="t-sec">☁️ Sincronización entre dispositivos</div>` +
-    `<div class="card" id="gsync-panel"></div>`;
-
-  GSYNC.renderPanel();
+    `</div>`;
 
   // Actualizar badge en nav
   updateNotifBadge(notifs.length);
@@ -1888,7 +1867,7 @@ function formAlumno(id) {
     if (al) { data.id = id; await DB.put('alumnos', data); }
     else await DB.add('alumnos', data);
     await loadAll(); closeModal();
-    toast(al ? 'Alumno actualizado' : 'Alumno agregado'); GSYNC.onDataChanged();
+    toast(al ? 'Alumno actualizado' : 'Alumno agregado');
     rAlumnos();
   });
 }
@@ -1956,7 +1935,7 @@ function formClase(alumnoId) {
       await DB.add('clases', { ...claseBase, fecha: fmt(d) });
     }
     await loadAll(); closeModal();
-    toast(repetir > 0 ? `Clase creada × ${repetir+1} semanas` : 'Clase agregada'); GSYNC.onDataChanged();
+    toast(repetir > 0 ? `Clase creada × ${repetir+1} semanas` : 'Clase agregada');
     rClases(fecha);
     const clNueva = S.clases.find(c => c.id === newId);
     if (clNueva && GCAL.isConnected()) GCAL.syncOne(clNueva).catch(() => {});
@@ -1992,7 +1971,7 @@ function formPago(alumnoId) {
     const notas  = document.getElementById('fp-notas').value.trim();
     await DB.add('pagos', { alumnoId: alumnoIdV, monto, fecha: document.getElementById('fp-fecha').value, metodo, estado: 'pagado', notas });
     await loadAll(); closeModal();
-    toast('Pago registrado ✓'); GSYNC.onDataChanged();
+    toast('Pago registrado ✓');
     rPagos();
     enviarConfirmacionPago(alumnoIdV, metodo, monto, notas);
   });
@@ -2037,7 +2016,7 @@ async function editarPago(id) {
       estado: document.getElementById('ep-estado').value,
       notas:  document.getElementById('ep-notas').value.trim(),
     });
-    await loadAll(); closeModal(); toast('Pago actualizado'); GSYNC.onDataChanged();; rPagos();
+    await loadAll(); closeModal(); toast('Pago actualizado'); rPagos();
   });
 }
 
@@ -2067,7 +2046,7 @@ function formProgreso(alumnoId) {
     HABS.forEach(h => { habs[h] = parseInt(document.getElementById('sl-'+h).value) || 0; });
     const comentario = document.getElementById('fp-comentario').value.trim();
     await DB.add('notas', { alumnoId, fecha: fmt(new Date()), habs, comentario });
-    await loadAll(); closeModal(); toast('Progreso actualizado ✓'); GSYNC.onDataChanged();
+    await loadAll(); closeModal(); toast('Progreso actualizado ✓');
     verAlumno(alumnoId);
   });
 }
@@ -2080,9 +2059,9 @@ async function exportarBackupDrive() {
     alumnos: S.alumnos, clases: S.clases, pagos: S.pagos, notas: S.notas, config: S.config,
   };
   const fileContent = JSON.stringify(backup, null, 2);
-  const fileName = `PadelConEmmanuel_backup_${hoy}.json`;
-  const blob = new Blob([fileContent], { type: 'application/json' });
-  const file = new File([blob], fileName, { type: 'application/json' });
+  const fileName = `PadelConEmmanuel_backup_${hoy}.txt`;
+  const blob = new Blob([fileContent], { type: 'text/plain' });
+  const file = new File([blob], fileName, { type: 'text/plain' });
 
   const textoMsg =
     `🎾 *Backup PadelConEmmanuel*\n` +
@@ -2093,7 +2072,8 @@ async function exportarBackupDrive() {
   rNotifs();
 
   // En celular: Web Share API comparte el archivo directo a WhatsApp u otra app
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  console.log('canShare support:', !!navigator.canShare, 'canShare file:', navigator.canShare?.({ files: [file] }));
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ title: '🎾 Backup PadelConEmmanuel', text: textoMsg, files: [file] });
       toast('✅ Backup compartido');
@@ -2350,34 +2330,10 @@ const GCAL = (() => {
   function ensureToken(forceConsent = false) {
     return new Promise((resolve, reject) => {
       const saved = JSON.parse(localStorage.getItem('gcal_token') || 'null');
-
-      // Token vigente → usar directo
-      if (!forceConsent && saved && saved.exp > Date.now()) {
-        accessToken = saved.token; resolve(); return;
-      }
-
-      // Token vencido en sync automática (sin interacción del usuario):
-      // Google bloquea el popup → la Promise quedaría colgada indefinidamente.
-      // En lugar de colgar, rechazamos con TOKEN_EXPIRED para que syncBidireccional
-      // falle limpiamente y el próximo ciclo lo reintente.
-      if (!forceConsent && !tokenClient) {
-        reject(new Error('TOKEN_EXPIRED')); return;
-      }
-
-      // Con interacción del usuario (forceConsent) o tokenClient disponible
+      if (!forceConsent && saved && saved.exp > Date.now()) { accessToken = saved.token; resolve(); return; }
       if (!tokenClient) { reject(new Error('no token client')); return; }
-
-      // Timeout de seguridad: si Google no responde en 10s, rechazar
-      let settled = false;
-      const timeout = setTimeout(() => {
-        if (!settled) { settled = true; reject(new Error('TOKEN_EXPIRED')); }
-      }, 10000);
-
       const orig = tokenClient.callback;
       tokenClient.callback = (resp) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
         tokenClient.callback = orig;
         if (resp.error) { reject(new Error(resp.error)); return; }
         accessToken = resp.access_token;
@@ -2463,18 +2419,6 @@ const GCAL = (() => {
     return data.items || [];
   }
 
-  // ── Cola de borrados pendientes ───────────────────────────────────
-  function enqueuePendingDelete(gcalEventId) {
-    if (!gcalEventId) return;
-    try {
-      const q = JSON.parse(localStorage.getItem('gcal_pending_deletes') || '[]');
-      if (!q.includes(gcalEventId)) { q.push(gcalEventId); localStorage.setItem('gcal_pending_deletes', JSON.stringify(q)); }
-    } catch(e) {}
-  }
-  function dequeuePendingDeletes() {
-    try { const q = JSON.parse(localStorage.getItem('gcal_pending_deletes') || '[]'); localStorage.removeItem('gcal_pending_deletes'); return q; } catch(e) { return []; }
-  }
-
   // ── SINCRONIZACIÓN BIDIRECCIONAL PRINCIPAL ────────────────────────
   // Esta función es la que resuelve todo. Corre al conectar, al abrir el panel,
   // al volver al foco, y cada 5 minutos si está conectado.
@@ -2482,20 +2426,8 @@ const GCAL = (() => {
     if (!accessToken) return;
     try {
       if (!dedicatedCalId) await ensureDedicatedCalendar();
-      const calEnc = encodeURIComponent(dedicatedCalId);
-
-      // ── 0. Procesar borrados pendientes (clases eliminadas sin conexión activa) ─
-      const pendingDeletes = dequeuePendingDeletes();
-      for (const gcalId of pendingDeletes) {
-        try {
-          await apiFetch(`https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${gcalId}`,
-            { method: 'DELETE' });
-        } catch(e) {
-          if (!e.message?.includes('404')) enqueuePendingDelete(gcalId);
-        }
-      }
-
       const events = await fetchExistingEvents();
+      const calEnc = encodeURIComponent(dedicatedCalId);
 
       // Mapa: tag [padelcoach:ID] → evento GCal
       const tagMap = {};      // tagMap['42'] = { id: gcalEventId, ... }
@@ -2508,7 +2440,6 @@ const GCAL = (() => {
 
       // ── 1. App → GCal: crear/actualizar clases de la app ──────────
       let pushed = 0;
-      const appClaseIds = new Set(S.clases.filter(c => !c.gcal_imported).map(c => String(c.id)));
       for (const cl of S.clases) {
         if (cl.gcal_imported) continue; // estas las maneja GCal
         const event = buildEvent(cl);
@@ -2537,27 +2468,6 @@ const GCAL = (() => {
         }
       }
 
-      // ── 1b. App → GCal: borrar eventos HUÉRFANOS ──────────────────
-      // Eventos con tag [padelcoach:N] cuya clase YA NO existe en la app → borrar de GCal
-      // ESTE ES EL FIX PRINCIPAL: detecta clases eliminadas de la app durante la sync
-      let deletedOrphans = 0;
-      for (const ev of events) {
-        if (ev.status === 'cancelled') continue;
-        const m = (ev.description || '').match(/\[padelcoach:(\d+)\]/);
-        if (!m) continue; // no es de la app, no tocar
-        const claseId = m[1];
-        if (!appClaseIds.has(claseId)) {
-          // La clase fue eliminada de la app → borrar el evento de GCal
-          try {
-            await apiFetch(`https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${ev.id}`,
-              { method: 'DELETE' });
-            deletedOrphans++;
-          } catch(e) {
-            if (!e.message?.includes('404')) console.warn('orphan delete fail:', e.message);
-          }
-        }
-      }
-
       // ── 2. GCal → App: detectar eventos eliminados en GCal ────────
       // Si una clase tiene gcal_event_id pero ese evento ya no existe en GCal → eliminar en la app
       let deletedFromGcal = 0;
@@ -2570,7 +2480,6 @@ const GCAL = (() => {
           deletedFromGcal++;
         }
       }
-
 
       // ── 3. GCal → App: importar eventos nuevos creados en GCal ────
       // Eventos sin tag [padelcoach:N] que no fueron importados antes
@@ -2607,7 +2516,7 @@ const GCAL = (() => {
       }
 
       // ── 4. Recargar si hubo cambios ───────────────────────────────
-      if (deletedFromGcal > 0 || deletedOrphans > 0 || imported > 0 || pushed > 0) {
+      if (deletedFromGcal > 0 || imported > 0 || pushed > 0) {
         await loadAll();
         if (S.tab === 'clases') rClases();
         if (S.tab === 'inicio') rInicio();
@@ -2618,13 +2527,11 @@ const GCAL = (() => {
         if (pushed > 0) partes.push(`${pushed} enviada${pushed>1?'s':''} a GCal`);
         if (imported > 0) partes.push(`${imported} importada${imported>1?'s':''} de GCal`);
         if (deletedFromGcal > 0) partes.push(`${deletedFromGcal} eliminada${deletedFromGcal>1?'s':''} desde GCal`);
-        if (deletedOrphans > 0) partes.push(`${deletedOrphans} eliminada${deletedOrphans>1?'s':''} de GCal`);
         toast(partes.length ? `✓ ${partes.join(' · ')}` : '✓ Todo sincronizado', 'ok');
       }
 
       renderPanel();
     } catch(e) {
-      if (e.message === 'TOKEN_EXPIRED') return; // token vencido, reintentar en próximo ciclo
       console.error('syncBidireccional:', e);
       if (showToast) toast('Error de sincronización', 'err');
     }
@@ -2667,43 +2574,28 @@ const GCAL = (() => {
 
   // ── deleteOne: al eliminar una clase en la app ────────────────────
   async function deleteOne(cl) {
-    // Siempre encolar como respaldo (se procesa en próxima sync si falla ahora)
-    const gcalIdFast = cl.gcal_event_id || cl.gcal_imported;
-    if (gcalIdFast) enqueuePendingDelete(gcalIdFast);
-
-    if (!accessToken) return; // se procesará en la próxima sync
+    if (!accessToken) return;
     try {
       if (!dedicatedCalId) await ensureDedicatedCalendar();
       const calEnc = encodeURIComponent(dedicatedCalId);
 
-      let gcalId = gcalIdFast;
+      // Primero intentar con gcal_event_id (rápido, sin fetch extra)
+      let gcalId = cl.gcal_event_id || cl.gcal_imported;
 
       if (!gcalId) {
         // Fallback: buscar por tag
         const events = await fetchExistingEvents();
         const found  = events.find(ev => (ev.description||'').includes(`[${TAG}:${cl.id}]`));
         gcalId = found?.id;
-        if (gcalId) enqueuePendingDelete(gcalId);
       }
 
       if (gcalId) {
         await apiFetch(`https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${gcalId}`,
           { method: 'DELETE' });
-        // Borrado exitoso: quitar de la cola
-        try {
-          const q = JSON.parse(localStorage.getItem('gcal_pending_deletes') || '[]');
-          localStorage.setItem('gcal_pending_deletes', JSON.stringify(q.filter(id => id !== gcalId)));
-        } catch(e) {}
       }
     } catch(e) {
-      // Si el evento ya no existe en GCal (404), limpiar la cola para ese id
-      if (e.message?.includes('404')) {
-        try {
-          const q = JSON.parse(localStorage.getItem('gcal_pending_deletes') || '[]');
-          localStorage.setItem('gcal_pending_deletes', JSON.stringify(q.filter(id => id !== gcalIdFast)));
-        } catch(_) {}
-      }
-      // En cualquier otro error, queda en la cola para la próxima sync
+      // Si el evento ya no existe en GCal (404), no es un error real
+      if (!e.message?.includes('404')) console.error('deleteOne:', e);
     }
   }
 
@@ -2786,33 +2678,11 @@ const GCAL = (() => {
 
   // ── Auto-sync cada 5 minutos ──────────────────────────────────────
   let _syncInterval = null;
-  let _visListenerAdded = false;
-
   function startAutoSync() {
-    // Limpiar intervalo anterior si existe
-    if (_syncInterval) clearInterval(_syncInterval);
+    if (_syncInterval) return;
     _syncInterval = setInterval(() => {
       if (accessToken) syncBidireccional(false);
-    }, 30 * 1000);
-
-    // Registrar listeners de visibilidad una sola vez
-    if (_visListenerAdded) return;
-    _visListenerAdded = true;
-
-    // visibilitychange: al volver de otra pestaña
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && accessToken) {
-        syncBidireccional(false);
-      }
-    });
-    // pageshow: al volver desde background en móvil (más confiable que visibilitychange)
-    window.addEventListener('pageshow', (e) => {
-      if (accessToken) syncBidireccional(false);
-    });
-    // focus: al volver al foco en desktop
-    window.addEventListener('focus', () => {
-      if (accessToken) syncBidireccional(false);
-    });
+    }, 5 * 60 * 1000);
   }
 
   return {
@@ -2848,21 +2718,17 @@ const GCAL = (() => {
     async ensureToken(force) { await ensureToken(force); },
     syncOne,
     deleteOne,
-    enqueuePendingDelete,
     importFromGCal: () => syncBidireccional(false),
     syncManual() { setLoading(true); syncBidireccional(true).finally(() => setLoading(false)); },
     ensureToken(forceConsent = false) { return ensureToken(forceConsent); },
     getToken() { return accessToken; },
     async init() {
       loadToken(); loadUserInfo(); loadCalId();
-      if (!accessToken) return; // no conectado, nada que hacer
-      try {
+      if (accessToken) {
         await initGIS();
         startAutoSync();
-        // Sync silenciosa al arrancar — pequeño delay para que GAPI esté listo
-        setTimeout(() => syncBidireccional(false), 1000);
-      } catch(e) {
-        console.warn('GCAL.init error:', e.message);
+        // Sync silenciosa al arrancar la app
+        setTimeout(() => syncBidireccional(false), 2000);
       }
     }
   };
@@ -3105,319 +2971,6 @@ window.GCAL = GCAL;
   });
 })();
  
-
-/* ═══════════════════════════════════════════════════════════════════
-   GITHUB SYNC — sincronización multi-dispositivo vía data.json
-   Repo: cynthi85-oss/padelcoach  |  branch: main
-   Guarda/lee un archivo data.json en el repo con todos los datos.
-   Cada dispositivo sincroniza automáticamente cada 2 minutos.
-═══════════════════════════════════════════════════════════════════ */
-const GSYNC = (() => {
-  const REPO    = 'cynthi85-oss/padelcoach';
-  const BRANCH  = 'main';
-  const FILE    = 'data.json';
-  const API     = `https://api.github.com/repos/${REPO}/contents/${FILE}`;
-  const INTERVAL_MS = 2 * 60 * 1000; // 2 minutos
-  const LS_TOKEN    = 'gsync_pat';
-  const LS_LAST     = 'gsync_last_ts';
-  const LS_SHA      = 'gsync_sha';
-
-  let _timer = null;
-  let _syncing = false;
-  let _token = null;
-
-  // ── Token ────────────────────────────────────────────────────────
-  function getToken() {
-    if (_token) return _token;
-    _token = localStorage.getItem(LS_TOKEN) || null;
-    return _token;
-  }
-  function saveToken(t) {
-    _token = t.trim();
-    localStorage.setItem(LS_TOKEN, _token);
-  }
-  function clearToken() {
-    _token = null;
-    localStorage.removeItem(LS_TOKEN);
-    localStorage.removeItem(LS_SHA);
-    localStorage.removeItem(LS_LAST);
-  }
-  function isConnected() { return !!getToken(); }
-
-  // ── Helpers ──────────────────────────────────────────────────────
-  function getLastTs()  { return parseInt(localStorage.getItem(LS_LAST) || '0'); }
-  function saveLastTs() { localStorage.setItem(LS_LAST, Date.now().toString()); }
-  function getSha()     { return localStorage.getItem(LS_SHA) || undefined; }
-  function saveSha(s)   { if (s) localStorage.setItem(LS_SHA, s); }
-
-  async function ghFetch(url, opts = {}) {
-    const tok = getToken();
-    if (!tok) throw new Error('NO_TOKEN');
-    const res = await fetch(url, {
-      ...opts,
-      headers: {
-        'Authorization': `Bearer ${tok}`,
-        'Accept': 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        ...(opts.headers || {})
-      }
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`GH_${res.status}: ${body.slice(0, 120)}`);
-    }
-    if (res.status === 204) return null;
-    return res.json();
-  }
-
-  // ── Leer data.json del repo ──────────────────────────────────────
-  async function readRemote() {
-    try {
-      const data = await ghFetch(`${API}?ref=${BRANCH}&t=${Date.now()}`);
-      if (!data || !data.content) return null;
-      saveSha(data.sha);
-      const json = JSON.parse(atob(data.content.replace(/\n/g, '')));
-      return json;
-    } catch(e) {
-      if (e.message.includes('GH_404')) return null; // archivo no existe aún
-      throw e;
-    }
-  }
-
-  // ── Escribir data.json al repo ───────────────────────────────────
-  async function writeRemote(payload) {
-    const content = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
-    const body = {
-      message: `sync ${new Date().toISOString().slice(0,16).replace('T',' ')}`,
-      content,
-      branch: BRANCH,
-    };
-    const sha = getSha();
-    if (sha) body.sha = sha; // necesario para update
-    const result = await ghFetch(API, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (result?.content?.sha) saveSha(result.content.sha);
-  }
-
-  // ── Merge inteligente: gana el registro con timestamp más nuevo ──
-  // Cada registro tiene un campo `_ts` (epoch ms) que se actualiza al modificar.
-  // La sync toma el más reciente para cada id.
-  function mergeArrays(local, remote, key = 'id') {
-    const map = new Map();
-    // primero remote, luego local overrides si es más nuevo
-    for (const r of (remote || [])) map.set(r[key], r);
-    for (const l of (local  || [])) {
-      const r = map.get(l[key]);
-      if (!r || (l._ts || 0) >= (r._ts || 0)) map.set(l[key], l);
-    }
-    return Array.from(map.values());
-  }
-
-  // ── SYNC PRINCIPAL ───────────────────────────────────────────────
-  async function sync(manual = false) {
-    if (!getToken()) return;
-    if (_syncing) return;
-    _syncing = true;
-    try {
-      updateIndicator('syncing');
-
-      const remote = await readRemote();
-
-      // Construir snapshot local
-      const local = {
-        _ts: Date.now(),
-        alumnos: S.alumnos,
-        clases:  S.clases,
-        pagos:   S.pagos,
-        notas:   S.notas,
-      };
-
-      let changed = false;
-
-      if (!remote) {
-        // Primera vez: subir todo
-        await writeRemote(local);
-        changed = false; // ya tenemos los datos correctos
-      } else {
-        // Merge: ganador por _ts por registro
-        const alumnos = mergeArrays(local.alumnos, remote.alumnos);
-        const clases  = mergeArrays(local.clases,  remote.clases);
-        const pagos   = mergeArrays(local.pagos,   remote.pagos);
-        const notas   = mergeArrays(local.notas,   remote.notas);
-
-        // Detectar si hay cambios remotos que el local no tiene
-        const remoteNewer =
-          alumnos.some(r => !(S.alumnos.find(l => l.id === r.id && (l._ts||0) >= (r._ts||0)))) ||
-          clases.some(r  => !(S.clases.find(l  => l.id === r.id && (l._ts||0) >= (r._ts||0)))) ||
-          pagos.some(r   => !(S.pagos.find(l   => l.id === r.id && (l._ts||0) >= (r._ts||0)))) ||
-          notas.some(r   => !(S.notas.find(l   => l.id === r.id && (l._ts||0) >= (r._ts||0))));
-
-        // Detectar si hay datos locales nuevos que subir
-        const localNewer = remote._ts < local._ts &&
-          (alumnos.length !== remote.alumnos?.length ||
-           clases.length  !== remote.clases?.length  ||
-           pagos.length   !== remote.pagos?.length   ||
-           notas.length   !== remote.notas?.length   ||
-           JSON.stringify(alumnos) !== JSON.stringify(remote.alumnos) ||
-           JSON.stringify(clases)  !== JSON.stringify(remote.clases)  ||
-           JSON.stringify(pagos)   !== JSON.stringify(remote.pagos)   ||
-           JSON.stringify(notas)   !== JSON.stringify(remote.notas));
-
-        if (remoteNewer) {
-          // Escribir merged en IndexedDB
-          for (const a of alumnos) await DB.put('alumnos', a);
-          for (const c of clases)  await DB.put('clases',  c);
-          for (const p of pagos)   await DB.put('pagos',   p);
-          for (const n of notas)   await DB.put('notas',   n);
-          // Borrar registros que ya no están en el merged (eliminados en otro dispositivo)
-          for (const l of S.alumnos) { if (!alumnos.find(r => r.id === l.id)) await DB.del('alumnos', l.id); }
-          for (const l of S.clases)  { if (!clases.find(r  => r.id === l.id)) await DB.del('clases',  l.id); }
-          for (const l of S.pagos)   { if (!pagos.find(r   => r.id === l.id)) await DB.del('pagos',   l.id); }
-          for (const l of S.notas)   { if (!notas.find(r   => r.id === l.id)) await DB.del('notas',   l.id); }
-          await loadAll();
-          const tab = S.tab;
-          if (tab === 'inicio')  rInicio();
-          if (tab === 'alumnos') rAlumnos();
-          if (tab === 'clases')  rClases();
-          if (tab === 'pagos')   rPagos();
-          if (tab === 'notifs')  rNotifs();
-          changed = true;
-        }
-
-        if (localNewer || remoteNewer) {
-          // Subir el merge al repo
-          await writeRemote({ _ts: Date.now(), alumnos, clases, pagos, notas });
-        }
-      }
-
-      saveLastTs();
-      updateIndicator('ok');
-      if (manual) toast('✓ Sincronizado con GitHub', 'ok');
-      if (changed && !manual) toast('↓ Datos actualizados desde otro dispositivo'); GSYNC.onDataChanged();
-
-    } catch(e) {
-      console.error('GSYNC error:', e.message);
-      updateIndicator('err');
-      if (manual) toast('Error al sincronizar: ' + e.message.slice(0, 60), 'err');
-      if (e.message.includes('GH_401') || e.message.includes('GH_403')) {
-        clearToken(); renderPanel();
-      }
-    } finally {
-      _syncing = false;
-    }
-  }
-
-  // ── Auto-sync ────────────────────────────────────────────────────
-  function startAutoSync() {
-    if (_timer) clearInterval(_timer);
-    if (!getToken()) return;
-    _timer = setInterval(() => sync(false), INTERVAL_MS);
-    // Sync al volver al foco
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && getToken()) sync(false);
-    });
-  }
-
-  // ── Indicador visual en el header ────────────────────────────────
-  function updateIndicator(state) {
-    const el = document.getElementById('gsync-indicator');
-    if (!el) return;
-    const icons = { syncing: '🔄', ok: '☁️', err: '⚠️' };
-    const tips  = { syncing: 'Sincronizando…', ok: 'Sincronizado con GitHub', err: 'Error de sync' };
-    el.textContent = icons[state] || '☁️';
-    el.title = tips[state] || '';
-    el.style.opacity = state === 'syncing' ? '0.6' : '1';
-  }
-
-  // ── Panel de configuración (se inyecta en rNotifs) ───────────────
-  function renderPanel() {
-    const container = document.getElementById('gsync-panel');
-    if (!container) return;
-    const tok = getToken();
-    const lastTs = getLastTs();
-    const lastStr = lastTs
-      ? new Date(lastTs).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-      : 'Nunca';
-
-    if (!tok) {
-      container.innerHTML = `
-        <div style="font-size:13px;color:var(--t1);line-height:1.6;margin-bottom:12px">
-          Sincronizá tus datos entre todos tus dispositivos automáticamente cada 2 minutos.<br>
-          Necesitás un <strong style="color:var(--tw)">GitHub Personal Access Token</strong> con permiso <code style="background:var(--s3);padding:1px 5px;border-radius:4px">repo</code>.
-        </div>
-        <div style="font-size:11.5px;color:var(--t1);margin-bottom:8px">
-          👉 <a href="https://github.com/settings/tokens/new?scopes=repo&description=PadelCoach+Sync" target="_blank" style="color:var(--ac)">Generá tu token acá</a> (seleccioná solo <strong>repo</strong>)
-        </div>
-        <input id="gsync-token-input" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-          style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);
-          background:var(--s3);color:var(--tw);font-size:14px;font-family:inherit;margin-bottom:10px;outline:none">
-        <button onclick="GSYNC.connectToken()" class="btn-green" style="width:100%">🔗 Conectar y sincronizar</button>`;
-    } else {
-      container.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-          <div style="width:10px;height:10px;border-radius:50%;background:var(--g);flex-shrink:0;box-shadow:0 0 6px var(--g)"></div>
-          <div style="font-size:13px;color:var(--tw);font-weight:700">Sincronización activa</div>
-        </div>
-        <div style="font-size:12px;color:var(--t1);margin-bottom:4px">☁️ Repo: <code style="color:var(--t2)">cynthi85-oss/padelcoach</code></div>
-        <div style="font-size:12px;color:var(--t1);margin-bottom:14px">🕐 Última sync: <strong style="color:var(--t2)">${lastStr}</strong> · Auto cada 2 min</div>
-        <div style="display:flex;gap:8px">
-          <button onclick="GSYNC.syncManual()" class="btn-green" style="flex:1">🔄 Sincronizar ahora</button>
-          <button onclick="GSYNC.disconnect()" style="padding:11px 14px;border-radius:12px;background:var(--rl);border:1px solid rgba(255,61,107,0.2);color:var(--rd);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Desconectar</button>
-        </div>`;
-    }
-  }
-
-  return {
-    init() {
-      if (getToken()) { sync(false); startAutoSync(); }
-      // Inyectar indicador en el header
-      setTimeout(() => {
-        const hdrRow = document.querySelector('.hdr-row');
-        if (hdrRow && !document.getElementById('gsync-indicator')) {
-          const ind = document.createElement('span');
-          ind.id = 'gsync-indicator';
-          ind.style.cssText = 'font-size:16px;cursor:pointer;margin-right:-4px';
-          ind.title = 'Sincronización GitHub';
-          ind.onclick = () => { if (S.tab !== 'notifs') { goTab('notifs'); } };
-          ind.textContent = getToken() ? '☁️' : '';
-          hdrRow.insertBefore(ind, hdrRow.lastElementChild);
-        }
-      }, 500);
-    },
-    connectToken() {
-      const input = document.getElementById('gsync-token-input');
-      if (!input || !input.value.trim()) { toast('Ingresá el token', 'err'); return; }
-      saveToken(input.value.trim());
-      toast('Conectando…');
-      renderPanel();
-      sync(true).then(() => { startAutoSync(); renderPanel(); });
-    },
-    syncManual() { sync(true).then(() => renderPanel()); },
-    disconnect() {
-      if (!confirm('¿Desconectar la sincronización? Los datos locales no se borran.')) return;
-      clearToken();
-      if (_timer) { clearInterval(_timer); _timer = null; }
-      const ind = document.getElementById('gsync-indicator');
-      if (ind) ind.textContent = '';
-      renderPanel();
-      toast('Sincronización desconectada');
-    },
-    renderPanel,
-    isConnected,
-    // Llamar esto cada vez que se modifica un registro para marcar timestamp
-    touch(store, obj) {
-      return { ...obj, _ts: Date.now() };
-    },
-    // Trigger sync inmediata al guardar cambios locales
-    onDataChanged() {
-      if (getToken() && !_syncing) setTimeout(() => sync(false), 300);
-    }
-  };
-})();
-
 document.addEventListener('DOMContentLoaded', boot);
 </script>
 </body>
