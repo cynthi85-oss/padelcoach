@@ -2159,15 +2159,20 @@ async function subirBackupDrive() {
 }
 
 async function obtenerTokenDrive() {
-  if (window.GCAL?.initGIS) await GCAL.initGIS();
-  if (window.GCAL?.ensureToken) {
-    await GCAL.ensureToken(true);
-    const token = GCAL.getToken && GCAL.getToken();
-    if (token) return token;
-  }
-
   const CLIENT_ID = '456704676078-kh72v2ar7jmjtpq9dj2pid5a77cr8obc.apps.googleusercontent.com';
   const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
+  if (location.protocol === 'file:') {
+    throw new Error('Google Drive no funciona abriendo el HTML como archivo. Abrilo desde http://localhost y agregá ese origen en Google Cloud.');
+  }
+
+  try {
+    const saved = JSON.parse(localStorage.getItem('drive_token') || 'null');
+    if (saved && saved.exp > Date.now()) return saved.token;
+  } catch(e) {}
+
+  if (window.GCAL?.initGIS) await GCAL.initGIS();
+
   let wait = 0;
   while (!window.google?.accounts?.oauth2 && wait < 50) {
     await new Promise(r => setTimeout(r, 100));
@@ -2182,7 +2187,7 @@ async function obtenerTokenDrive() {
       callback: (resp) => {
         if (resp?.access_token) {
           const exp = Date.now() + ((resp.expires_in || 3600) - 60) * 1000;
-          localStorage.setItem('gcal_token', JSON.stringify({ token: resp.access_token, exp }));
+          localStorage.setItem('drive_token', JSON.stringify({ token: resp.access_token, exp }));
           resolve(resp.access_token);
           return;
         }
