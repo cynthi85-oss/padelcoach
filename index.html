@@ -2061,8 +2061,8 @@ function _generarBackup() {
     alumnos: S.alumnos, clases: S.clases, pagos: S.pagos, notas: S.notas, config: S.config,
   }, null, 2);
   const fileName = `PadelConEmmanuel_backup_${hoy}.json`;
-  const blob = new Blob([fileContent], { type: 'application/json' });
-  const file = new File([blob], fileName, { type: 'application/json' });
+  const blob = new Blob([fileContent], { type: 'text/plain' });
+  const file = new File([blob], fileName, { type: 'text/plain' });
   const textoMsg =
     `🎾 *Backup PadelConEmmanuel*\n` +
     `📅 ${fechaLinda}\n` +
@@ -2103,21 +2103,31 @@ async function compartirBackupWA() {
 // alias para compatibilidad
 function exportarBackupDrive() { descargarBackup(); }
 
+
 async function subirBackupDrive() {
   const btn = [...document.querySelectorAll('button')].find(b => b.textContent.includes('Google Drive'));
   if (btn) { btn.disabled = true; btn.textContent = 'Subiendo...'; }
 
   try {
+    if (location.protocol === 'file:') {
+      throw new Error('Abri la app con abrir-app-local.bat o desde http://127.0.0.1:8000/index.html. Google Drive no acepta file://.');
+    }
+
     const { fileName, blob } = _generarBackup();
     const fileContent = await blob.text();
-    const token = await obtenerTokenDrive();
 
-    const q = encodeURIComponent("name contains 'PadelConEmmanuel_backup_' and trashed=false");
+    await cargarGoogleIdentityDrive();
+
+    const CLIENT_ID = '456704676078-kh72v2ar7jmjtpq9dj2pid5a77cr8obc.apps.googleusercontent.com';
+    const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+    const token = await obtenerTokenSoloDrive(CLIENT_ID, SCOPE);
+
+    const q = encodeURIComponent("name contains 'PadelConEmmanuel_backup' and trashed=false");
     const searchRes = await fetch(
       `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&orderBy=createdTime desc`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
-    if (!searchRes.ok) throw new Error(await leerErrorGoogle(searchRes));
+    if (!searchRes.ok) throw new Error(await errorGoogleDrive(searchRes));
     const { files = [] } = await searchRes.json();
     const existing = files[0];
 
@@ -2141,49 +2151,55 @@ async function subirBackupDrive() {
         body
       }
     );
-    if (!uploadRes.ok) throw new Error(await leerErrorGoogle(uploadRes));
+    if (!uploadRes.ok) throw new Error(await errorGoogleDrive(uploadRes));
 
     localStorage.setItem('ultimo_backup', Date.now().toString());
     rNotifs();
     toast('Backup guardado en Google Drive');
   } catch(e) {
-    if (e.name === 'AbortError' || e.message === 'no_token') {
-      toast('Cancelado.');
-    } else {
-      console.error('Drive error:', e);
-      toast('Error al subir a Drive: ' + e.message, 'err');
-    }
+    const msg = mensajeDriveAmigable(e);
+    console.error('Drive error:', e);
+    toast(msg, 'err');
+    if (msg.length > 80) alert(msg);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Guardar en Google Drive'; }
   }
 }
 
-async function obtenerTokenDrive() {
-  const CLIENT_ID = '456704676078-kh72v2ar7jmjtpq9dj2pid5a77cr8obc.apps.googleusercontent.com';
-  const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+function cargarGoogleIdentityDrive() {
+  return new Promise((resolve, reject) => {
+    if (window.google?.accounts?.oauth2) { resolve(); return; }
 
-  if (location.protocol === 'file:') {
-    throw new Error('Google Drive no funciona abriendo el HTML como archivo. Abrilo desde http://localhost y agregá ese origen en Google Cloud.');
-  }
+    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('No se pudo cargar Google Identity. Revisa la conexion.')), { once: true });
+      setTimeout(() => window.google?.accounts?.oauth2 ? resolve() : reject(new Error('Google tardo demasiado en cargar.')), 8000);
+      return;
+    }
 
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true;
+    s.defer = true;
+    s.onload = () => window.google?.accounts?.oauth2 ? resolve() : reject(new Error('Google Identity cargo incompleto.'));
+    s.onerror = () => reject(new Error('No se pudo cargar Google Identity. Revisa la conexion.'));
+    document.head.appendChild(s);
+  });
+}
+
+function obtenerTokenSoloDrive(clientId, scope) {
   try {
     const saved = JSON.parse(localStorage.getItem('drive_token') || 'null');
-    if (saved && saved.exp > Date.now()) return saved.token;
+    if (saved && saved.exp > Date.now()) return Promise.resolve(saved.token);
   } catch(e) {}
 
-  if (window.GCAL?.initGIS) await GCAL.initGIS();
-
-  let wait = 0;
-  while (!window.google?.accounts?.oauth2 && wait < 50) {
-    await new Promise(r => setTimeout(r, 100));
-    wait++;
-  }
-  if (!window.google?.accounts?.oauth2) throw new Error('Google no cargo. Revisa tu conexion.');
-
   return new Promise((resolve, reject) => {
+    if (!window.google?.accounts?.oauth2) { reject(new Error('Google Identity no esta cargado.')); return; }
+
     const tc = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPE,
+      client_id: clientId,
+      scope,
       callback: (resp) => {
         if (resp?.access_token) {
           const exp = Date.now() + ((resp.expires_in || 3600) - 60) * 1000;
@@ -2191,21 +2207,49 @@ async function obtenerTokenDrive() {
           resolve(resp.access_token);
           return;
         }
-        reject(new Error(resp?.error || 'no_token'));
-      }
+        reject(new Error(resp?.error_description || resp?.error || 'No se obtuvo token de Google.'));
+      },
+      error_callback: (err) => reject(new Error(err?.message || err?.type || 'Google bloqueo la ventana de acceso.'))
     });
-    tc.requestAccessToken({ prompt: 'consent' });
+
+    try {
+      tc.requestAccessToken({ prompt: 'consent' });
+    } catch(e) {
+      reject(e);
+    }
   });
 }
 
-async function leerErrorGoogle(res) {
+async function errorGoogleDrive(res) {
   try {
     const data = await res.json();
-    return data?.error?.message || `HTTP ${res.status}`;
+    return data?.error?.message || data?.error?.status || `HTTP ${res.status}`;
   } catch(e) {
     return `HTTP ${res.status}`;
   }
 }
+
+function mensajeDriveAmigable(e) {
+  const raw = String(e?.message || e || '');
+  const lower = raw.toLowerCase();
+
+  if (lower.includes('file://')) return raw;
+  if (lower.includes('origin') || lower.includes('not allowed')) {
+    return `Google rechazo este origen: ${location.origin}. Agregalo en Google Cloud > OAuth Client > Authorized JavaScript origins.`;
+  }
+  if (lower.includes('access_denied') || lower.includes('no_token')) return 'Permiso cancelado o cuenta no autorizada para esta app.';
+  if (lower.includes('popup') || lower.includes('ventana')) return 'Google no pudo abrir la ventana de acceso. Permiti popups para esta pagina y proba de nuevo.';
+  if (lower.includes('drive api') || lower.includes('not been used') || lower.includes('disabled')) return 'La Google Drive API no esta habilitada en el proyecto de Google Cloud.';
+  if (lower.includes('403')) return 'Google rechazo el permiso. Revisa que Drive API este habilitada y que tu usuario sea tester de la pantalla OAuth.';
+  if (lower.includes('401')) {
+    localStorage.removeItem('drive_token');
+    return 'El acceso a Google vencio. Proba otra vez para reconectar.';
+  }
+  if (lower.includes('failed to fetch')) return 'No se pudo contactar a Google. Revisa internet, bloqueadores o permisos del navegador.';
+
+  return 'Error al subir a Drive: ' + raw;
+}
+
 function renderSemanaClases(selDate) {
   const base = selDate ? new Date(selDate + 'T12:00:00') : new Date();
   // Start of current week (Monday)
