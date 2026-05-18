@@ -1813,6 +1813,7 @@ function rNotifs() {
     `<button class="btn-green" onclick="descargarBackup()" style="margin-bottom:8px">💾 Descargar backup</button>` +
     `<button class="btn-green" onclick="compartirBackupWA()" style="margin-bottom:8px;background:var(--g)">📲 Compartir por WhatsApp</button>` +
     `<button class="btn-green" onclick="subirBackupDrive()" style="margin-bottom:8px;background:#4285f4">☁️ Guardar en Google Drive</button>` +
+    `<button class="btn-outline" onclick="reconectarGoogle()" style="margin-bottom:8px;font-size:12px">🔄 Reconectar Google (si Drive falla)</button>` +
     `<button class="btn-outline" onclick="document.getElementById('import-file').click()">⬆️ Restaurar backup</button>` +
     `<input type="file" id="import-file" accept=".json" style="display:none" onchange="importarBackup(this)">` +
     `</div>`;
@@ -2068,6 +2069,16 @@ function _generarBackup() {
     `📅 ${fechaLinda}\n` +
     `👤 ${S.alumnos.length} alumnos · 📋 ${S.clases.length} clases · 💰 ${S.pagos.length} pagos`;
   return { fileName, blob, file, textoMsg };
+}
+
+function reconectarGoogle() {
+  if (confirm('Esto va a desconectar Google Calendar y reconectar con permisos de Drive. ¿Continuar?')) {
+    GCAL.logout();
+    setTimeout(() => {
+      toast('✅ Desconectado. Ahora conectá Google Calendar de nuevo.');
+      renderPanel();
+    }, 500);
+  }
 }
 
 function descargarBackup() {
