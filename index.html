@@ -2072,13 +2072,12 @@ function _generarBackup() {
 }
 
 function reconectarGoogle() {
-  if (confirm('Esto va a desconectar Google Calendar y reconectar con permisos de Drive. ¿Continuar?')) {
-    GCAL.logout();
-    setTimeout(() => {
-      toast('✅ Desconectado. Ahora conectá Google Calendar de nuevo.');
-      renderPanel();
-    }, 500);
-  }
+  GCAL.logout();
+  setTimeout(async () => {
+    toast('🔑 Reconectando con Google...');
+    await GCAL.initGIS();
+    GCAL.ensureToken(true);
+  }, 800);
 }
 
 function descargarBackup() {
@@ -2787,7 +2786,7 @@ const GCAL = (() => {
       await initGIS();
       if (!gapiReady) { toast('Cargando Google...'); await new Promise(r => setTimeout(r, 1500)); }
       if (!tokenClient) { toast('Error: recargá la página', 'err'); return; }
-      tokenClient.requestAccessToken();
+      tokenClient.requestAccessToken({ prompt: 'consent' });
     },
     logout() {
       const tok = accessToken;
