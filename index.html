@@ -2661,32 +2661,37 @@ function notificarClasesMesWA(alumnoId, fechaRef) {
   const al = S.alumnos.find(a => a.id === alumnoId);
   if (!al || !al.tel) return;
 
-  const mes = fechaRef.slice(0, 7); // "YYYY-MM"
+  const mes = fechaRef.slice(0, 7);
   const clasesMes = S.clases
     .filter(c => c.alumnoId === alumnoId && c.fecha.startsWith(mes))
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora));
 
   if (!clasesMes.length) return;
 
-  const tel     = normalizarTelAR(al.tel);
-  const nombre  = al.nombre.split(' ')[0];
-  const [y, m]  = mes.split('-');
-  const meses   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const mesNom  = `${meses[+m-1]} ${y}`;
-  const dias    = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const tel    = normalizarTelAR(al.tel);
+  const nombre = al.nombre.split(' ')[0];
+  const [y, m] = mes.split('-');
+  const meses  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const mesNom = `${meses[+m-1]} ${y}`;
+  const dias   = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 
   const lista = clasesMes.map(cl => {
     const d = new Date(cl.fecha + 'T12:00:00');
     return `📅 ${dias[d.getDay()]} ${d.getDate()} · ${cl.hora}hs · ${cl.cancha}`;
   }).join('\n');
 
-  const msg = encodeURIComponent(
-    `Hola ${nombre}! 🎾\n` +
-    `Tus clases de *${mesNom}*:\n\n` +
-    lista + '\n\n' +
-    `Cualquier cambio o consulta avisame! 👋`
+  const textoPlano = `Hola ${nombre}! 🎾\nTus clases de ${mesNom}:\n\n${lista}\n\nCualquier cambio o consulta avisame! 👋`;
+  const url = `https://wa.me/${tel}?text=${encodeURIComponent(textoPlano.replace(/\*/g,''))}`;
+
+  // Modal con preview y botón de envío
+  openModal(`💬 Notificar a ${nombre}`,
+    `<p style="font-size:13px;color:var(--t1);margin-bottom:12px">Clases de <b>${mesNom}</b> listas para enviar:</p>` +
+    `<div style="background:var(--s3);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.8;color:var(--tw);white-space:pre-wrap;margin-bottom:16px">${textoPlano}</div>` +
+    `<button class="btn-wa" style="font-size:16px;padding:14px;border-radius:14px" onclick="window.open('${url}','_blank');closeModal()">📲 Enviar por WhatsApp</button>` +
+    `<button class="btn-outline" style="width:100%;margin-top:8px;text-align:center" onclick="closeModal()">Ahora no</button>`,
+    closeModal
   );
-  window.open(`https://wa.me/${tel}?text=${msg}`, '_blank');
+  document.getElementById('msave').style.display = 'none';
 }
 
 async function compartirClaseWA(id) {
