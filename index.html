@@ -1738,45 +1738,47 @@ function updateNotifBadge(count) {
 async function formClaseEdit(id) {
   const cl = await DB.get('clases', id);
   if (!cl) return;
-  const alumnoOpts = '<option value="">Sin alumno asignado</option>' +
-    S.alumnos.map(a => `<option value="${a.id}" ${a.id===cl.alumnoId?'selected':''}>${a.nombre}</option>`).join('');
+  const ids = cl.alumnosIds?.length ? cl.alumnosIds : (cl.alumnoId ? [cl.alumnoId] : []);
   openModal('Editar clase', `
     <label class="flbl">Título *</label>
-    <input class="finp" id="fce-titulo" type="text" value="${cl.titulo||''}">
+    <input class="finp" id="fc-titulo" type="text" value="${cl.titulo||''}">
     <label class="flbl">Fecha *</label>
-    <input class="finp" id="fce-fecha" type="date" value="${cl.fecha}">
+    <input class="finp" id="fc-fecha" type="date" value="${cl.fecha}">
     <label class="flbl">Hora</label>
-    <input class="finp" id="fce-hora" type="time" value="${cl.hora||'09:00'}">
+    <input class="finp" id="fc-hora" type="time" value="${cl.hora||'09:00'}">
     <label class="flbl">Duración (min)</label>
-    <input class="finp" id="fce-dur" type="number" value="${cl.dur||60}" min="15" step="15">
+    <input class="finp" id="fc-dur" type="number" value="${cl.dur||60}" min="15" step="15">
     <label class="flbl">Cancha</label>
-    <input class="finp" id="fce-cancha" type="text" value="${cl.cancha||'Cancha 1'}">
+    <input class="finp" id="fc-cancha" type="text" value="${cl.cancha||'Cancha 1'}">
     <label class="flbl">Tipo</label>
-    <select class="finp" id="fce-tipo">
+    <select class="finp" id="fc-tipo">
       ${['particular','grupal','clínica'].map(t=>`<option value="${t}" ${cl.tipo===t?'selected':''}>${t}</option>`).join('')}
     </select>
-    <label class="flbl">Alumno</label>
-    <select class="finp" id="fce-alumno">${alumnoOpts}</select>
+    <label class="flbl">Alumnos (hasta 4)</label>
+    <div style="margin-bottom:6px"><select class="finp" id="fc-a0" style="margin:0">${_alumnoOpts(ids[0])}</select></div>
+    ${_alumnoSlot(1,ids[1]||null,!!ids[1])}${_alumnoSlot(2,ids[2]||null,!!ids[2])}${_alumnoSlot(3,ids[3]||null,!!ids[3])}
+    <button type="button" id="fc-addal" onclick="_addAlumnoSlot()" class="btn-outline" style="width:100%;margin-bottom:10px;${ids.length>=4?'display:none':''}">+ Agregar alumno</button>
     <label class="flbl">Estado</label>
-    <select class="finp" id="fce-estado">
+    <select class="finp" id="fc-estado">
       ${['confirmada','pendiente','cancelada'].map(s=>`<option value="${s}" ${cl.estado===s?'selected':''}>${s}</option>`).join('')}
     </select>
     <label class="flbl">Notas</label>
-    <input class="finp" id="fce-notas" type="text" value="${cl.notas||''}">
+    <input class="finp" id="fc-notas" type="text" value="${cl.notas||''}">
   `, async () => {
-    const titulo = document.getElementById('fce-titulo').value.trim();
-    const fecha  = document.getElementById('fce-fecha').value;
+    const titulo = document.getElementById('fc-titulo').value.trim();
+    const fecha  = document.getElementById('fc-fecha').value;
     if (!titulo || !fecha) { toast('Completá título y fecha', 'err'); return; }
+    const alumnosIds = _getAlumnosIds();
     await DB.put('clases', {
-      ...cl,
-      titulo, fecha,
-      hora:     document.getElementById('fce-hora').value,
-      dur:      parseInt(document.getElementById('fce-dur').value) || 60,
-      cancha:   document.getElementById('fce-cancha').value || 'Cancha 1',
-      tipo:     document.getElementById('fce-tipo').value,
-      alumnoId: parseInt(document.getElementById('fce-alumno').value) || null,
-      estado:   document.getElementById('fce-estado').value,
-      notas:    document.getElementById('fce-notas').value.trim(),
+      ...cl, titulo, fecha,
+      hora:      document.getElementById('fc-hora').value,
+      dur:       parseInt(document.getElementById('fc-dur').value) || 60,
+      cancha:    document.getElementById('fc-cancha').value || 'Cancha 1',
+      tipo:      document.getElementById('fc-tipo').value,
+      alumnoId:  alumnosIds[0] || null,
+      alumnosIds,
+      estado:    document.getElementById('fc-estado').value,
+      notas:     document.getElementById('fc-notas').value.trim(),
     });
     await loadAll(); closeModal(); toast('Clase actualizada'); rClases(fecha);
   });
@@ -2051,10 +2053,35 @@ function formAlumno(id) {
   });
 }
 
+function _alumnoOpts(selVal) {
+  return '<option value="">—</option>' +
+    S.alumnos.map(a => `<option value="${a.id}" ${a.id===selVal?'selected':''}>${a.nombre}</option>`).join('');
+}
+function _alumnoSlot(i, selVal, visible) {
+  return `<div id="fc-aw${i}" style="display:${visible?'flex':'none'};align-items:center;gap:6px;margin-bottom:6px">
+    <select class="finp" id="fc-a${i}" style="flex:1;margin:0">${_alumnoOpts(selVal)}</select>
+    <button type="button" onclick="document.getElementById('fc-aw${i}').style.display='none';document.getElementById('fc-a${i}').value='';document.getElementById('fc-addal').style.display='block'" style="background:var(--s3);border:none;color:var(--t1);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px">×</button>
+  </div>`;
+}
+function _addAlumnoSlot() {
+  for (let i = 1; i <= 3; i++) {
+    const w = document.getElementById('fc-aw' + i);
+    if (w && w.style.display === 'none') {
+      w.style.display = 'flex';
+      if (i === 3) document.getElementById('fc-addal').style.display = 'none';
+      return;
+    }
+  }
+}
+function _getAlumnosIds() {
+  return [0,1,2,3]
+    .map(i => parseInt(document.getElementById('fc-a'+i)?.value) || null)
+    .filter(Boolean)
+    .filter((v,i,arr) => arr.indexOf(v) === i);
+}
+
 function formClase(alumnoId) {
   const hoy = fmt(new Date());
-  const alumnoOpts = '<option value="">Sin alumno asignado</option>' +
-    S.alumnos.map(a => `<option value="${a.id}" ${a.id===alumnoId?'selected':''}>${a.nombre}</option>`).join('');
   openModal('Nueva clase', `
     <label class="flbl">Título *</label>
     <input class="finp" id="fc-titulo" type="text" placeholder="Ej: Clase particular">
@@ -2072,8 +2099,10 @@ function formClase(alumnoId) {
       <option value="grupal">Grupal</option>
       <option value="clínica">Clínica</option>
     </select>
-    <label class="flbl">Alumno</label>
-    <select class="finp" id="fc-alumno">${alumnoOpts}</select>
+    <label class="flbl">Alumnos (hasta 4)</label>
+    <div style="margin-bottom:6px"><select class="finp" id="fc-a0" style="margin:0">${_alumnoOpts(alumnoId)}</select></div>
+    ${_alumnoSlot(1,null,false)}${_alumnoSlot(2,null,false)}${_alumnoSlot(3,null,false)}
+    <button type="button" id="fc-addal" onclick="_addAlumnoSlot()" class="btn-outline" style="width:100%;margin-bottom:10px">+ Agregar alumno</button>
     <label class="flbl">Estado</label>
     <select class="finp" id="fc-estado">
       <option value="confirmada">Confirmada</option>
@@ -2096,15 +2125,17 @@ function formClase(alumnoId) {
     const titulo = document.getElementById('fc-titulo').value.trim();
     const fecha  = document.getElementById('fc-fecha').value;
     if (!titulo || !fecha) { toast('Completá título y fecha', 'err'); return; }
+    const alumnosIds = _getAlumnosIds();
     const claseBase = {
       titulo, fecha,
-      hora:     document.getElementById('fc-hora').value,
-      dur:      parseInt(document.getElementById('fc-dur').value) || 60,
-      cancha:   document.getElementById('fc-cancha').value || 'Cancha 1',
-      tipo:     document.getElementById('fc-tipo').value,
-      alumnoId: parseInt(document.getElementById('fc-alumno').value) || null,
-      estado:   document.getElementById('fc-estado').value,
-      notas:    document.getElementById('fc-notas').value.trim(),
+      hora:      document.getElementById('fc-hora').value,
+      dur:       parseInt(document.getElementById('fc-dur').value) || 60,
+      cancha:    document.getElementById('fc-cancha').value || 'Cancha 1',
+      tipo:      document.getElementById('fc-tipo').value,
+      alumnoId:  alumnosIds[0] || null,
+      alumnosIds,
+      estado:    document.getElementById('fc-estado').value,
+      notas:     document.getElementById('fc-notas').value.trim(),
     };
     const newId = await DB.add('clases', claseBase);
     const repetir = parseInt(document.getElementById('fc-repetir').value) || 0;
@@ -2710,7 +2741,7 @@ function notificarClasesMesWA(alumnoId, fechaRef) {
 
   const mes = fechaRef.slice(0, 7);
   const clasesMes = S.clases
-    .filter(c => c.alumnoId === alumnoId && c.fecha.startsWith(mes))
+    .filter(c => c.fecha.startsWith(mes) && (c.alumnoId === alumnoId || (c.alumnosIds||[]).includes(alumnoId)))
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora));
 
   if (!clasesMes.length) return;
