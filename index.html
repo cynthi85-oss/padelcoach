@@ -1622,8 +1622,13 @@ function rPagos(vista = 'alumnos') {
   const qPagos = document.getElementById('buscar-pagos')?.value?.toLowerCase() || '';
 
   if (vista === 'alumnos') {
-    // Vista por alumno: deuda + historial compacto
-    const alumnosFiltrados = qPagos ? S.alumnos.filter(al => al.nombre.toLowerCase().includes(qPagos)) : S.alumnos;
+    // Vista por alumno: solo pendientes por defecto, ordenados por deuda
+    const alumnosFiltrados = (qPagos
+      ? S.alumnos.filter(al => al.nombre.toLowerCase().includes(qPagos))
+      : S.alumnos
+    ).filter(al => getClasesDeuda(al.id).length > 0)
+     .sort((a,b) => getClasesDeuda(b.id).length - getClasesDeuda(a.id).length);
+
     const filas = alumnosFiltrados.map(al => {
       const deudas = getClasesDeuda(al.id);
       const pagosAl = S.pagos.filter(p => p.estado==='pagado' && p.alumnoId===al.id)
