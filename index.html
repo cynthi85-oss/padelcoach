@@ -1486,28 +1486,69 @@ async function cobrarClaseWA(claseId, alumnoId) {
   const cl = await DB.get('clases', claseId);
   if (!cl) return;
   const al = S.alumnos.find(a => a.id === alumnoId);
-  if (!al || !al.tel) return;
+  if (!al) return;
 
-  const tel    = normalizarTelAR(al.tel);
   const nombre = al.nombre.split(' ')[0];
   const dia    = fmtDisp(cl.fecha);
 
-  const msg = encodeURIComponent(
-    `Hola ${nombre}! 🎾\n` +
-    `Te paso el cobro de tu clase:\n` +
-    `📅 ${dia} a las ${cl.hora}hs\n` +
-    `📍 ${cl.cancha} · ${cl.dur} min\n\n` +
-    `Avisame cuando puedas! 🙌`
-  );
+  openModal(`💰 Cobrar a ${nombre}`, `
+    <div style="font-size:13px;color:var(--t1);margin-bottom:14px">
+      📅 ${dia} · ${cl.hora}hs · ${cl.cancha}
+    </div>
+    <label class="flbl">Monto</label>
+    <input class="finp" id="cpago-monto" type="number" min="0" placeholder="Ej: 5000" style="margin-bottom:14px">
+    <label class="flbl">Método de pago</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      ${[['Efectivo','💵'],['Transferencia','📲'],['MercadoPago','📱']].map(([val,ico])=>
+        `<button type="button" class="btn-outline cpago-met" style="flex:1;min-width:calc(33% - 6px)"
+          onclick="document.querySelectorAll('.cpago-met').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('cpago-metval').value='${val}'">
+          ${ico} ${val}
+        </button>`
+      ).join('')}
+    </div>
+    <input type="hidden" id="cpago-metval" value="">
+    ${al.tel ? `<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t1);cursor:pointer;margin-top:4px">
+      <input type="checkbox" id="cpago-wa" checked style="width:16px;height:16px">
+      Enviar confirmación por WhatsApp
+    </label>` : ''}
+  `, async () => {
+    const monto  = parseFloat(document.getElementById('cpago-monto').value) || 0;
+    const metodo = document.getElementById('cpago-metval').value;
+    if (!metodo) { toast('Seleccioná un método de pago', 'err'); return; }
 
-  // Registrar como pago pendiente
-  registrarNoPago(alumnoId, claseId, cl.titulo, cl.fecha);
-  rPagos();
+    // Registrar pago en DB
+    await DB.add('pagos', {
+      alumnoId,
+      monto,
+      fecha:  cl.fecha,
+      metodo,
+      estado: 'pagado',
+      notas:  `Clase: ${cl.titulo} · ${dia}`,
+    });
 
-  window.open(`https://wa.me/${tel}?text=${msg}`, '_blank');
-  closeModal();
-  toast(`💰 Cobro enviado a ${nombre} — aparece en Pagos pendientes`);
+    // Quitar de pendientes si estaba
+    saldarDeuda(alumnoId, claseId);
+
+    await loadAll();
+    closeModal();
+    rPagos();
+    toast(`✅ Pago de ${nombre} registrado — ${metodo}`);
+
+    // WA opcional
+    const sendWA = document.getElementById('cpago-wa')?.checked;
+    if (sendWA && al.tel) {
+      const tel = normalizarTelAR(al.tel);
+      const montoStr = monto > 0 ? ` de $${monto.toLocaleString('es-AR')}` : '';
+      const msg = encodeURIComponent(
+        `Hola ${nombre}! 🎾\n` +
+        `Recibí tu pago${montoStr} por la clase del ${dia}.\n` +
+        `Método: ${metodo} ✓\n\nGracias! 🙌`
+      );
+      window.open(`https://wa.me/${tel}?text=${msg}`, '_blank');
+    }
+  });
 }
+window.cobrarClaseWA = cobrarClaseWA;
  
 /* ═══════════════════════════════════════════════════════════════════
    PAGOS — seguimiento por alumno
