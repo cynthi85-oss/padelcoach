@@ -1558,9 +1558,19 @@ window.cobrarClaseWA = cobrarClaseWA;
    PAGOS — seguimiento por alumno
 ═══════════════════════════════════════════════════════════════════ */
  
-// Obtener clases no pagadas de un alumno (registradas por PAYPOPUP como 'nopago')
+// Clases sin pago registrado — automático desde el calendario
 function getClasesDeuda(alumnoId) {
-  return (window._clasesNoPago || []).filter(r => r.alumnoId === alumnoId);
+  const clasesAlumno = S.clases.filter(c =>
+    c.alumnoId === alumnoId || (c.alumnosIds||[]).includes(alumnoId)
+  );
+  const pagosPorClaseId = new Set(
+    S.pagos.filter(p => p.alumnoId === alumnoId && p.claseId && p.estado === 'pagado')
+           .map(p => p.claseId)
+  );
+  return clasesAlumno
+    .filter(c => !pagosPorClaseId.has(c.id))
+    .map(c => ({ alumnoId, claseId: c.id, claseTitle: c.titulo, fecha: c.fecha }))
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
 }
  
 // Guardar registro de no-pago por clase
@@ -1623,8 +1633,8 @@ function rPagos(vista = 'alumnos') {
  
       const deudaRows = deudas.map(d =>
         `<div class="pay-deuda-row">
-          <span class="pay-deuda-clase">⚠️ ${d.claseTitle} · ${fmtDisp(d.fecha)}</span>
-          <button class="pay-saldar-btn" onclick="abrirSaldarDeuda(${al.id},${d.claseId},'${d.claseTitle}')">Cobrar</button>
+          <span class="pay-deuda-clase" style="color:var(--rd)">🔴 ${d.claseTitle} · ${fmtDisp(d.fecha)}</span>
+          <button class="pay-saldar-btn" onclick="abrirSaldarDeuda(${al.id},${d.claseId},'${d.claseTitle}')">💰 Cobrar</button>
           ${al.tel ? `<button class="pay-wa-btn" onclick="enviarWADeuda(${al.id},'${d.claseTitle}','${d.fecha}')">💬</button>` : ''}
         </div>`
       ).join('');
@@ -1742,26 +1752,36 @@ function rPagos(vista = 'alumnos') {
  
 // Modal para cobrar una deuda con método de pago
 function abrirSaldarDeuda(alumnoId, claseId, claseTitle) {
+  const cl = S.clases.find(c => c.id === claseId);
   openModal(`Cobrar: ${claseTitle}`, `
-    <p style="color:var(--t1);margin-bottom:16px">Seleccioná cómo pagó esta clase:</p>
+    <p style="color:var(--t1);margin-bottom:10px">¿Cómo pagó esta clase?</p>
+    <label class="flbl">Monto</label>
+    <input class="finp" id="sd-monto" type="number" min="0" placeholder="Ej: 5000" style="margin-bottom:12px">
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${[['Efectivo','💵'],['Transferencia','📲'],['MercadoPago','📱']].map(([val,ico])=>
-        `<button class="btn-outline" style="flex:1;min-width:calc(50% - 4px)" onclick="registrarPagoDeuda(${alumnoId},${claseId},'${val}')">${ico} ${val}</button>`
+        `<button class="btn-outline" style="flex:1;min-width:calc(33% - 6px)" onclick="registrarPagoDeuda(${alumnoId},${claseId},'${val}')">${ico} ${val}</button>`
       ).join('')}
     </div>
   `, null);
   document.getElementById('msave').style.display = 'none';
 }
 window.abrirSaldarDeuda = abrirSaldarDeuda;
- 
+
 async function registrarPagoDeuda(alumnoId, claseId, metodo) {
-  await DB.add('pagos', { alumnoId, monto: 0, fecha: fmt(new Date()), metodo, estado: 'pagado' });
-  saldarDeuda(alumnoId, claseId);
+  const monto = parseFloat(document.getElementById('sd-monto')?.value) || 0;
+  const cl    = S.clases.find(c => c.id === claseId);
+  await DB.add('pagos', {
+    alumnoId, claseId, monto,
+    fecha:  cl?.fecha || fmt(new Date()),
+    metodo, estado: 'pagado',
+    notas:  cl ? `Clase: ${cl.titulo} · ${fmtDisp(cl.fecha)}` : ''
+  });
   closeModal();
   await loadAll();
+  rPagos();
   toast(`Pago registrado — ${metodo} ✓`);
   const alDeuda = S.alumnos.find(a => a.id === alumnoId);
-  if (alDeuda?.tel) enviarConfirmacionPago(alumnoId, metodo, 0, '');
+  if (alDeuda?.tel) enviarConfirmacionPago(alumnoId, metodo, monto, '');
 }
 window.registrarPagoDeuda = registrarPagoDeuda;
  
