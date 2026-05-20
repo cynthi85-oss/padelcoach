@@ -1446,22 +1446,67 @@ function rClases(selDate) {
 async function verClase(id) {
   const cl = await DB.get('clases', id);
   if (!cl) return;
-  const al = cl.alumnoId ? S.alumnos.find(a=>a.id===cl.alumnoId) : null;
+
+  // Soporte para uno o varios alumnos
+  const alumnosIds = cl.alumnosIds?.length ? cl.alumnosIds : (cl.alumnoId ? [cl.alumnoId] : []);
+  const alumnos    = alumnosIds.map(aid => S.alumnos.find(a => a.id === aid)).filter(Boolean);
+  const al         = alumnos[0] || null; // compatibilidad
+
+  // Botones de cobro por WA — uno por alumno
+  const botonesCobro = alumnos.filter(a => a.tel).map(a => {
+    const yaPendiente = (window._clasesNoPago||[]).find(r => r.alumnoId === a.id && r.claseId === id);
+    const label = yaPendiente
+      ? `⏳ Pendiente · ${a.nombre.split(' ')[0]}`
+      : `💰 Cobrar a ${a.nombre.split(' ')[0]} por WhatsApp`;
+    const style = yaPendiente
+      ? 'background:#555;color:#fff'
+      : 'background:#f4b400;color:#000';
+    return `<button class="btn-green mt-8" style="${style}" onclick="cobrarClaseWA(${id},${a.id})">${label}</button>`;
+  }).join('');
+
   openModal(cl.titulo, `
     <div class="inf"><span class="inf-lbl">Fecha</span><span class="inf-val">${fmtDisp(cl.fecha)}</span></div>
     <div class="inf"><span class="inf-lbl">Hora</span><span class="inf-val">${cl.hora} · ${cl.dur} min</span></div>
     <div class="inf"><span class="inf-lbl">Cancha</span><span class="inf-val">${cl.cancha}</span></div>
     <div class="inf"><span class="inf-lbl">Tipo</span><span class="inf-val">${cl.tipo}</span></div>
-    ${al?`<div class="inf"><span class="inf-lbl">Alumno</span><span class="inf-val">${al.nombre}</span></div>`:''}
+    ${alumnos.length ? `<div class="inf"><span class="inf-lbl">Alumno${alumnos.length>1?'s':''}</span><span class="inf-val">${alumnos.map(a=>a.nombre).join(', ')}</span></div>` : ''}
     <div class="inf"><span class="inf-lbl">Estado</span><span class="inf-val">${BADGE[cl.estado]||cl.estado}</span></div>
     ${cl.notas?`<div class="inf"><span class="inf-lbl">Notas</span><span class="inf-val">${cl.notas}</span></div>`:''}
     <div class="btn-row mt-12">
       <button class="btn-outline" style="flex:1;margin:0" onclick="closeModal();formClaseEdit(${id})">Editar</button>
       <button class="btn-danger" style="flex:1" onclick="eliminarClase(${id})">Eliminar</button>
     </div>
-    ${al ? `<button class="btn-wa mt-12" onclick="compartirClaseWA(${id})">💬 Compartir por WhatsApp</button>` : ''}
+    ${al ? `<button class="btn-wa mt-8" onclick="compartirClaseWA(${id})">💬 Compartir por WhatsApp</button>` : ''}
+    ${botonesCobro}
   `, closeModal);
   document.getElementById('msave').style.display='none';
+}
+
+async function cobrarClaseWA(claseId, alumnoId) {
+  const cl = await DB.get('clases', claseId);
+  if (!cl) return;
+  const al = S.alumnos.find(a => a.id === alumnoId);
+  if (!al || !al.tel) return;
+
+  const tel    = normalizarTelAR(al.tel);
+  const nombre = al.nombre.split(' ')[0];
+  const dia    = fmtDisp(cl.fecha);
+
+  const msg = encodeURIComponent(
+    `Hola ${nombre}! 🎾\n` +
+    `Te paso el cobro de tu clase:\n` +
+    `📅 ${dia} a las ${cl.hora}hs\n` +
+    `📍 ${cl.cancha} · ${cl.dur} min\n\n` +
+    `Avisame cuando puedas! 🙌`
+  );
+
+  // Registrar como pago pendiente
+  registrarNoPago(alumnoId, claseId, cl.titulo, cl.fecha);
+  rPagos();
+
+  window.open(`https://wa.me/${tel}?text=${msg}`, '_blank');
+  closeModal();
+  toast(`💰 Cobro enviado a ${nombre} — aparece en Pagos pendientes`);
 }
  
 /* ═══════════════════════════════════════════════════════════════════
