@@ -2071,6 +2071,7 @@ function formClase(alumnoId) {
     rClases(fecha);
     const clNueva = S.clases.find(c => c.id === newId);
     if (clNueva && GCAL.isConnected()) GCAL.syncOne(clNueva).catch(() => {});
+    if (claseBase.alumnoId) notificarClasesMesWA(claseBase.alumnoId, fecha);
   });
 }
 
@@ -2653,6 +2654,39 @@ function renderSemanaClases(selDate) {
     <div class="sem-grid">${semanaRows}</div>
   `;
   document.getElementById('fab').onclick = () => formClase();
+}
+
+function notificarClasesMesWA(alumnoId, fechaRef) {
+  if (!alumnoId) return;
+  const al = S.alumnos.find(a => a.id === alumnoId);
+  if (!al || !al.tel) return;
+
+  const mes = fechaRef.slice(0, 7); // "YYYY-MM"
+  const clasesMes = S.clases
+    .filter(c => c.alumnoId === alumnoId && c.fecha.startsWith(mes))
+    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora));
+
+  if (!clasesMes.length) return;
+
+  const tel     = normalizarTelAR(al.tel);
+  const nombre  = al.nombre.split(' ')[0];
+  const [y, m]  = mes.split('-');
+  const meses   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const mesNom  = `${meses[+m-1]} ${y}`;
+  const dias    = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+  const lista = clasesMes.map(cl => {
+    const d = new Date(cl.fecha + 'T12:00:00');
+    return `📅 ${dias[d.getDay()]} ${d.getDate()} · ${cl.hora}hs · ${cl.cancha}`;
+  }).join('\n');
+
+  const msg = encodeURIComponent(
+    `Hola ${nombre}! 🎾\n` +
+    `Tus clases de *${mesNom}*:\n\n` +
+    lista + '\n\n' +
+    `Cualquier cambio o consulta avisame! 👋`
+  );
+  window.open(`https://wa.me/${tel}?text=${msg}`, '_blank');
 }
 
 async function compartirClaseWA(id) {
