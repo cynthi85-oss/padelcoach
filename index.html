@@ -2464,12 +2464,21 @@ function _loadGIS() {
   });
 }
 
+function _fetchConTimeout(url, opts, ms = 20000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
+
 async function _getDriveToken(forceNew = false) {
   if (!forceNew && _driveToken && Date.now() < _driveTokenExp - 60000) return _driveToken;
   await _loadGIS();
   if (!window.google?.accounts?.oauth2) throw new Error('No se pudo cargar Google Sign-In');
   return new Promise((resolve, reject) => {
+    // Timeout de seguridad: si el popup no responde en 2 min, rechazar
+    const tid = setTimeout(() => reject(new Error('Tiempo de espera agotado')), 120000);
     const cb = (resp) => {
+      clearTimeout(tid);
       if (resp.error) {
         _driveToken = null; _driveTokenExp = 0;
         reject(new Error(resp.error_description || resp.error));
@@ -2488,7 +2497,8 @@ async function _getDriveToken(forceNew = false) {
     } else {
       _driveTokenClient.callback = cb;
     }
-    _driveTokenClient.requestAccessToken({ prompt: forceNew ? 'consent' : '' });
+    // 'select_account' siempre muestra el popup — evita el silent-fail con prompt:''
+    _driveTokenClient.requestAccessToken({ prompt: forceNew ? 'consent' : 'select_account' });
   });
 }
 
@@ -2505,15 +2515,16 @@ async function subirBackupDrive() {
 
     // Buscar backup previo para sobreescribir (solo archivos de esta app)
     let existingId = null;
+    const q = encodeURIComponent(`name contains 'PadelConEmmanuel_backup' and trashed=false`);
     try {
-      const q = encodeURIComponent(`name contains 'PadelConEmmanuel_backup' and trashed=false`);
-      const sr = await fetch(
+      const sr = await _fetchConTimeout(
         `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=1`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (sr.status === 401 || sr.status === 403) {
+        _driveToken = null; _driveTokenExp = 0;
         token = await _getDriveToken(true);
-        const sr2 = await fetch(
+        const sr2 = await _fetchConTimeout(
           `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=1`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -2521,7 +2532,9 @@ async function subirBackupDrive() {
       } else if (sr.ok) {
         existingId = (await sr.json()).files?.[0]?.id || null;
       }
-    } catch(_) {}
+    } catch(searchErr) {
+      console.warn('Drive search:', searchErr.message);
+    }
 
     const boundary = 'pdl' + Date.now();
     const meta     = JSON.stringify({ name: fileName, mimeType: 'application/json' });
@@ -2531,14 +2544,14 @@ async function subirBackupDrive() {
       ? `https://www.googleapis.com/upload/drive/v3/files/${existingId}?uploadType=multipart`
       : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
 
-    const res = await fetch(uploadUrl, {
+    const res = await _fetchConTimeout(uploadUrl, {
       method: existingId ? 'PATCH' : 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': `multipart/related; boundary="${boundary}"`
       },
       body
-    });
+    }, 30000);
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
