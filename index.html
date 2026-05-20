@@ -1452,16 +1452,19 @@ async function verClase(id) {
   const alumnos    = alumnosIds.map(aid => S.alumnos.find(a => a.id === aid)).filter(Boolean);
   const al         = alumnos[0] || null; // compatibilidad
 
-  // Botones de cobro por WA — uno por alumno
-  const botonesCobro = alumnos.filter(a => a.tel).map(a => {
-    const yaPendiente = (window._clasesNoPago||[]).find(r => r.alumnoId === a.id && r.claseId === id);
-    const label = yaPendiente
-      ? `⏳ Pendiente · ${a.nombre.split(' ')[0]}`
-      : `💰 Cobrar a ${a.nombre.split(' ')[0]} por WhatsApp`;
-    const style = yaPendiente
-      ? 'background:#555;color:#fff'
-      : 'background:#f4b400;color:#000';
-    return `<button class="btn-green mt-8" style="${style}" onclick="cobrarClaseWA(${id},${a.id})">${label}</button>`;
+  // Botones de cobro — uno por alumno, con 3 estados
+  const botonesCobro = alumnos.map(a => {
+    const pagado    = S.pagos.find(p => p.alumnoId === a.id && p.claseId === id && p.estado === 'pagado');
+    const pendiente = !pagado && (window._clasesNoPago||[]).find(r => r.alumnoId === a.id && r.claseId === id);
+    const nombre    = a.nombre.split(' ')[0];
+    if (pagado) {
+      const metodo = pagado.metodo ? ` · ${pagado.metodo}` : '';
+      return `<button class="btn-green mt-8" style="background:#1a7a3a;color:#fff;cursor:default" disabled>✅ Pagado · ${nombre}${metodo}</button>`;
+    }
+    if (pendiente) {
+      return `<button class="btn-green mt-8" style="background:#b35c00;color:#fff" onclick="cobrarClaseWA(${id},${a.id})">⏳ Pendiente · ${nombre} — Cobrar</button>`;
+    }
+    return `<button class="btn-green mt-8" style="background:#f4b400;color:#000" onclick="cobrarClaseWA(${id},${a.id})">💰 Cobrar a ${nombre}</button>`;
   }).join('');
 
   openModal(cl.titulo, `
@@ -1519,6 +1522,7 @@ async function cobrarClaseWA(claseId, alumnoId) {
     // Registrar pago en DB
     await DB.add('pagos', {
       alumnoId,
+      claseId,
       monto,
       fecha:  cl.fecha,
       metodo,
