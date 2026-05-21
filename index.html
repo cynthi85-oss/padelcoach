@@ -3065,6 +3065,22 @@ function exportarBackup() {
   rNotifs();
 }
 
+async function _limpiarYRestaurar(data) {
+  const db = await DB.open();
+  await new Promise((res, rej) => {
+    const stores = ['alumnos', 'clases', 'pagos', 'notas', 'gastos'];
+    const t = db.transaction(stores, 'readwrite');
+    t.oncomplete = res;
+    t.onerror = e => rej(e.target.error);
+    stores.forEach(s => t.objectStore(s).clear());
+    for (const r of (data.alumnos||[])) t.objectStore('alumnos').put(r);
+    for (const r of (data.clases||[]))  t.objectStore('clases').put(r);
+    for (const r of (data.pagos||[]))   t.objectStore('pagos').put(r);
+    for (const r of (data.notas||[]))   t.objectStore('notas').put(r);
+    for (const r of (data.gastos||[]))  t.objectStore('gastos').put(r);
+  });
+}
+
 async function importarBackup(input) {
   const file = input.files[0];
   if (!file) return;
@@ -3078,11 +3094,7 @@ async function importarBackup(input) {
       'Restaurar'
     );
     if (!ok) { input.value = ''; return; }
-    for (const al of (data.alumnos||[])) await DB.put('alumnos', al);
-    for (const cl of (data.clases||[]))  await DB.put('clases',  cl);
-    for (const p  of (data.pagos||[]))   await DB.put('pagos',   p);
-    for (const n  of (data.notas||[]))   await DB.put('notas',   n);
-    for (const g  of (data.gastos||[]))  await DB.put('gastos',  g);
+    await _limpiarYRestaurar(data);
     await loadAll();
     toast(`✅ Restaurado — ${data.alumnos.length + data.clases.length + (data.pagos?.length||0)} registros`);
     goTab('inicio');
@@ -3164,11 +3176,7 @@ async function restaurarArchivosDrive(fileId, fileName) {
     );
     if (!ok) return;
 
-    for (const al of (data.alumnos||[])) await DB.put('alumnos', al);
-    for (const cl of (data.clases||[]))  await DB.put('clases',  cl);
-    for (const p  of (data.pagos||[]))   await DB.put('pagos',   p);
-    for (const n  of (data.notas||[]))   await DB.put('notas',   n);
-    for (const g  of (data.gastos||[]))  await DB.put('gastos',  g);
+    await _limpiarYRestaurar(data);
     await loadAll();
     toast(`✅ Restaurado desde Drive — ${data.alumnos.length + data.clases.length + (data.pagos?.length||0)} registros`);
     goTab('inicio');
