@@ -105,7 +105,7 @@ body[data-tab="gastos"]  { --ac:#ff9f43; --acd:#e08025; --ac-glow:rgba(255,159,6
 .tog input:checked + .tog-sl { background: var(--ac) !important; }
 .push-card-btn { background: linear-gradient(135deg, var(--ac), var(--acd)) !important; }
 .btn-sync { background: linear-gradient(135deg, var(--ac), var(--acd)) !important; }
-.pay-tab.active { background: linear-gradient(135deg, var(--ac), var(--acd)) !important; border-color: transparent !important; }
+.pay-tab.active { background: linear-gradient(135deg, var(--ac), var(--acd)) !important; border-color: transparent !important; color: #fff !important; }
 .pay-saldar-btn { background: linear-gradient(135deg, var(--ac), var(--acd)) !important; }
 
 /* ── BODY ─────────────────────────────────────────────── */
@@ -1514,8 +1514,8 @@ async function cobrarClaseWA(claseId, alumnoId) {
     <label class="flbl">Método de pago</label>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
       ${[['Efectivo','💵'],['Transferencia','📲'],['MercadoPago','📱']].map(([val,ico])=>
-        `<button type="button" class="btn-outline cpago-met" style="flex:1;min-width:calc(33% - 6px)"
-          onclick="document.querySelectorAll('.cpago-met').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('cpago-metval').value='${val}'">
+        `<button type="button" class="btn-outline cpago-met" style="flex:1;min-width:calc(33% - 6px);transition:background .15s,box-shadow .15s,transform .1s"
+          onclick="selCpagoMetodo(this,'${val}')">
           ${ico} ${val}
         </button>`
       ).join('')}
@@ -2073,7 +2073,8 @@ function rNotifs() {
     `<p style="font-size:13px;color:var(--t1);margin-bottom:12px;line-height:1.5">Tus datos viven en este navegador. Exportá un backup para no perder nada si cambiás de teléfono o limpiás el caché.</p>` +
     `<div style="font-size:11.5px;color:var(--t2);margin-bottom:14px;padding:8px 12px;background:var(--s3);border-radius:10px">📁 ${backupInfo} · ${S.alumnos.length} alumnos · ${S.clases.length} clases · ${S.pagos.length} pagos</div>` +
     `<button class="btn-green" onclick="backupCompleto(this)" style="margin-bottom:8px;background:linear-gradient(135deg,#0f9d58,#4285f4);font-size:15px">💾 Guardar backup (local + Drive)</button>` +
-    `<button class="btn-green" onclick="document.getElementById('import-file').click()" style="margin-bottom:8px;background:#1a73e8">⬆️ Restaurar backup</button>` +
+    `<button class="btn-green" onclick="subirHtmlDrive()" style="margin-bottom:8px;background:#0f9d58">📱 Actualizar app en Drive (para el teléfono)</button>` +
+    `<button class="btn-green" onclick="elegirFuenteRestauro()" style="margin-bottom:8px;background:#1a73e8">⬆️ Restaurar backup</button>` +
     `<input type="file" id="import-file" accept=".json" style="display:none" onchange="importarBackup(this)">` +
     `</div>`;
 
@@ -2243,7 +2244,11 @@ function formClase(alumnoId) {
     rClases(fecha);
     const clNueva = S.clases.find(c => c.id === newId);
     if (clNueva && GCAL.isConnected()) GCAL.syncOne(clNueva).catch(() => {});
-    if (claseBase.alumnoId) notificarClasesMesWA(claseBase.alumnoId, fecha);
+    if (claseBase.tipo === 'grupal' && alumnosIds.length) {
+      notificarClaseGrupalWA(claseBase, alumnosIds);
+    } else if (claseBase.alumnoId) {
+      notificarClasesMesWA(claseBase.alumnoId, fecha);
+    }
   });
 }
 
@@ -2282,10 +2287,50 @@ function formPago(alumnoId) {
   });
 }
 
+function selCpagoMetodo(btn, val) {
+  const colores = {
+    'Efectivo':      { bg:'linear-gradient(135deg,#22c55e,#16a34a)', shadow:'0 3px 14px rgba(34,197,94,.45)'   },
+    'Transferencia': { bg:'linear-gradient(135deg,#3b82f6,#1d4ed8)', shadow:'0 3px 14px rgba(59,130,246,.45)'  },
+    'MercadoPago':   { bg:'linear-gradient(135deg,#009ee3,#0070a8)', shadow:'0 3px 14px rgba(0,158,227,.45)'   },
+  };
+  document.querySelectorAll('.cpago-met').forEach(b => {
+    b.style.removeProperty('background');
+    b.style.removeProperty('color');
+    b.style.removeProperty('border-color');
+    b.style.removeProperty('box-shadow');
+    b.style.transform = '';
+  });
+  const c = colores[val] || { bg:'var(--ac)', shadow:'none' };
+  btn.style.setProperty('background', c.bg, 'important');
+  btn.style.setProperty('color', '#fff', 'important');
+  btn.style.setProperty('border-color', 'transparent', 'important');
+  btn.style.setProperty('box-shadow', c.shadow, 'important');
+  btn.style.transform = 'scale(1.04)';
+  document.getElementById('cpago-metval').value = val;
+}
+
 function selMetodoPago(val, idx) {
   document.getElementById('fp-metodo').value = val;
+  const colores = {
+    'Efectivo':      { bg:'linear-gradient(135deg,#22c55e,#16a34a)', shadow:'0 3px 14px rgba(34,197,94,.45)'   },
+    'Transferencia': { bg:'linear-gradient(135deg,#3b82f6,#1d4ed8)', shadow:'0 3px 14px rgba(59,130,246,.45)'  },
+    'MercadoPago':   { bg:'linear-gradient(135deg,#009ee3,#0070a8)', shadow:'0 3px 14px rgba(0,158,227,.45)'   },
+  };
   document.querySelectorAll('[id^="fpm-btn-"]').forEach((b, i) => {
-    b.classList.toggle('active', i === idx);
+    if (i === idx) {
+      const c = colores[val] || { bg:'var(--ac)', shadow:'none' };
+      b.style.setProperty('background', c.bg, 'important');
+      b.style.setProperty('color', '#fff', 'important');
+      b.style.setProperty('border-color', 'transparent', 'important');
+      b.style.setProperty('box-shadow', c.shadow, 'important');
+      b.style.transform = 'scale(1.04)';
+    } else {
+      b.style.removeProperty('background');
+      b.style.removeProperty('color');
+      b.style.removeProperty('border-color');
+      b.style.removeProperty('box-shadow');
+      b.style.transform = '';
+    }
   });
 }
 
@@ -2611,6 +2656,49 @@ async function backupCompleto(btn) {
   }
 }
 
+async function subirHtmlDrive() {
+  try {
+    if (!window.showOpenFilePicker) { toast('Usá Chrome o Edge para esta función', 'err'); return; }
+    const [handle] = await window.showOpenFilePicker({
+      startIn: 'desktop',
+      types: [{ description: 'App HTML', accept: { 'text/html': ['.html'] } }]
+    });
+    const file     = await handle.getFile();
+    const htmlText = await file.text();
+
+    toast('☁️ Subiendo app a Drive...');
+    const token = await _getDriveToken();
+
+    const q = encodeURIComponent(`name='PadelConEmmanuel.html' and trashed=false`);
+    const sr = await _fetchConTimeout(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)&pageSize=1`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const existingId = sr.ok ? ((await sr.json()).files?.[0]?.id || null) : null;
+
+    const boundary = 'html' + Date.now();
+    const meta     = JSON.stringify({ name: 'PadelConEmmanuel.html', mimeType: 'text/html' });
+    const body     = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n${htmlText}\r\n--${boundary}--`;
+
+    const uploadUrl = existingId
+      ? `https://www.googleapis.com/upload/drive/v3/files/${existingId}?uploadType=multipart`
+      : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+
+    const res = await _fetchConTimeout(uploadUrl, {
+      method: existingId ? 'PATCH' : 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary="${boundary}"` },
+      body
+    }, 30000);
+
+    if (res.ok) toast('✅ App subida a Drive — descargala en el teléfono 📱');
+    else throw new Error(`Error ${res.status}`);
+  } catch(e) {
+    if (e.name === 'AbortError') return;
+    const cancelErrors = ['popup_closed_by_user','access_denied','user_cancel','immediate_failed'];
+    if (!cancelErrors.includes(e.message)) toast('❌ Error: ' + e.message, 'err');
+  }
+}
+
 async function guardarEnCarpetaLocal() {
   if (!window.showSaveFilePicker) {
     toast('❌ Usá Chrome o Edge para esta función'); return;
@@ -2866,6 +2954,48 @@ function notificarClasesMesWA(alumnoId, fechaRef) {
   document.getElementById('msave').style.display = 'none';
 }
 
+function notificarClaseGrupalWA(claseBase, alumnosIds) {
+  const alumnos = alumnosIds
+    .map(id => S.alumnos.find(a => a.id === id))
+    .filter(Boolean);
+  const conTel = alumnos.filter(a => a.tel);
+  if (!conTel.length) return;
+
+  const dia = fmtDisp(claseBase.fecha);
+
+  const filas = conTel.map(al => {
+    const nombre = al.nombre.split(' ')[0];
+    const tel = normalizarTelAR(al.tel);
+    const texto =
+      `Hola ${nombre}! 🎾\n` +
+      `Te confirmamos tu clase grupal de pádel:\n\n` +
+      `📅 ${dia} a las ${claseBase.hora}hs\n` +
+      `📍 ${claseBase.cancha}\n` +
+      `⏱ ${claseBase.dur} minutos\n` +
+      `👥 ${claseBase.titulo}\n\n` +
+      `Cualquier cambio avisame! 👋`;
+    const url = `https://wa.me/${tel}?text=${encodeURIComponent(texto)}`;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--s3);border-radius:10px;margin-bottom:6px">` +
+      `<span style="font-size:13px;color:var(--tw)">${al.nombre}</span>` +
+      `<a href="${url}" target="_blank" rel="noopener" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap">📲 Enviar</a>` +
+      `</div>`;
+  }).join('');
+
+  const sinTel = alumnos.filter(a => !a.tel);
+  const aviso = sinTel.length
+    ? `<p style="font-size:12px;color:var(--t1);margin-top:8px">⚠️ Sin teléfono: ${sinTel.map(a => a.nombre.split(' ')[0]).join(', ')}</p>`
+    : '';
+
+  openModal(
+    `💬 Notificar clase grupal`,
+    `<p style="font-size:13px;color:var(--t1);margin-bottom:12px">Clase <b>${claseBase.titulo}</b> · ${dia} ${claseBase.hora}hs · ${claseBase.cancha}</p>` +
+    filas + aviso +
+    `<button class="btn-outline" style="width:100%;margin-top:12px;text-align:center" onclick="closeModal()">Listo</button>`,
+    closeModal
+  );
+  document.getElementById('msave').style.display = 'none';
+}
+
 async function compartirClaseWA(id) {
   const cl = await DB.get('clases', id);
   if (!cl) return;
@@ -2962,6 +3092,91 @@ async function importarBackup(input) {
     toast('Error al leer el backup', 'err');
   }
   input.value = '';
+}
+
+function elegirFuenteRestauro() {
+  openModal('⬆️ Restaurar backup',
+    `<button class="btn-green" onclick="closeModal();document.getElementById('import-file').click()" style="margin-bottom:10px;background:#1a73e8;font-size:15px">
+      📂 Desde archivo (este dispositivo)
+    </button>
+    <button class="btn-green" onclick="closeModal();restaurarDesdeDrive()" style="background:linear-gradient(135deg,#0f9d58,#4285f4);font-size:15px">
+      ☁️ Desde Google Drive
+    </button>`,
+    null
+  );
+}
+
+async function restaurarDesdeDrive() {
+  try {
+    toast('☁️ Conectando con Drive...');
+    const token = await _getDriveToken();
+
+    const q = encodeURIComponent(`name contains 'PadelConEmmanuel_backup' and trashed=false`);
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime,size)&orderBy=modifiedTime+desc&pageSize=20`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!res.ok) throw new Error(`Error ${res.status}`);
+    const { files } = await res.json();
+
+    if (!files || !files.length) {
+      toast('No se encontraron backups en Drive', 'err');
+      return;
+    }
+
+    const filas = files.map(f => {
+      const fecha = new Date(f.modifiedTime).toLocaleDateString('es-AR', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      const kb    = f.size ? `${(f.size/1024).toFixed(1)} KB` : '';
+      return `<div onclick="restaurarArchivosDrive('${f.id}','${f.name.replace(/'/g,"\\'")}');closeModal()"
+        style="padding:12px 14px;background:var(--s3);border-radius:12px;margin-bottom:8px;cursor:pointer;border:1px solid rgba(255,255,255,0.07)"
+        onmouseover="this.style.background='var(--s4)'" onmouseout="this.style.background='var(--s3)'">
+        <div style="font-size:13px;font-weight:700;color:var(--tw);margin-bottom:3px">📄 ${f.name}</div>
+        <div style="font-size:11px;color:var(--t1)">🕐 ${fecha}${kb ? ' · ' + kb : ''}</div>
+      </div>`;
+    }).join('');
+
+    openModal('☁️ Backups en Drive',
+      `<p style="font-size:13px;color:var(--t1);margin-bottom:12px">Elegí el backup a restaurar:</p>` + filas +
+      `<button class="btn-outline" style="width:100%;margin-top:4px" onclick="closeModal()">Cancelar</button>`,
+      null
+    );
+  } catch(e) {
+    const cancelErrors = ['popup_closed_by_user','access_denied','user_cancel','immediate_failed'];
+    toast(cancelErrors.includes(e.message) ? '⚠️ Autenticación cancelada' : '❌ Error Drive: ' + e.message, 'err');
+  }
+}
+
+async function restaurarArchivosDrive(fileId, fileName) {
+  try {
+    toast('⬇️ Descargando backup...');
+    const token = await _getDriveToken();
+    const res   = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!res.ok) throw new Error(`Error ${res.status}`);
+    const data = await res.json();
+
+    if (!data.alumnos || !data.clases) { toast('Archivo inválido', 'err'); return; }
+    const fechaStr = data.fecha ? new Date(data.fecha).toLocaleDateString('es-AR') : 'desconocida';
+    const ok = await confirm(
+      `¿Restaurar backup del ${fechaStr}?\n${data.alumnos.length} alumnos · ${data.clases.length} clases · ${data.pagos?.length||0} pagos.\n\nEsto reemplaza todos los datos actuales.`,
+      'Restaurar'
+    );
+    if (!ok) return;
+
+    for (const al of (data.alumnos||[])) await DB.put('alumnos', al);
+    for (const cl of (data.clases||[]))  await DB.put('clases',  cl);
+    for (const p  of (data.pagos||[]))   await DB.put('pagos',   p);
+    for (const n  of (data.notas||[]))   await DB.put('notas',   n);
+    for (const g  of (data.gastos||[]))  await DB.put('gastos',  g);
+    await loadAll();
+    toast(`✅ Restaurado desde Drive — ${data.alumnos.length + data.clases.length + (data.pagos?.length||0)} registros`);
+    goTab('inicio');
+  } catch(e) {
+    console.error(e);
+    toast('❌ Error al restaurar: ' + e.message, 'err');
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
