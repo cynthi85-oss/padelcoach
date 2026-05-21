@@ -1031,6 +1031,17 @@ function avatarHtml(al, size='md') {
   }
   return `<div class="av" style="width:${sz}px;height:${sz}px;min-width:${sz}px;background:${co.bg};color:${co.c};font-size:${fs}px">${initials(al.nombre)}</div>`;
 }
+function jsArg(v) { return JSON.stringify(String(v ?? '')).replace(/"/g, '&quot;'); }
+function pagoMetodoHtml(metodo) {
+  const map = {
+    Efectivo: ['ef', '💵 Efectivo'],
+    Transferencia: ['tr', '📲 Transf.'],
+    MercadoPago: ['mp', '📱 MP'],
+    Cuota: ['cu', '📅 Cuota']
+  };
+  const [cls, label] = map[metodo] || ['tr', metodo || 'Sin método'];
+  return `<span class="pay-metodo ${cls}">${label}</span>`;
+}
 const BADGE = { pagado:'<span class="badge bg">pagado</span>', pendiente:'<span class="badge ba">pendiente</span>', vencido:'<span class="badge br">vencido</span>', confirmada:'<span class="badge bg">confirmada</span>', cancelada:'<span class="badge br">cancelada</span>', pendiente2:'<span class="badge ba">pendiente</span>' };
  
 /* ═══════════════════════════════════════════════════════════════════
@@ -1167,7 +1178,7 @@ function rAlumnos(q='') {
         <div class="row-name">${al.nombre}</div>
         <div class="row-sub"><span class="lvl-p ${NIVEL_CLS[al.nivel]}">${NIVELES[al.nivel]}</span> · ${al.freq} clase${al.freq>1?'s':''}/sem</div>
       </div>
-      ${est ? (BADGE[est]||'') : '<span class="badge b4">sin pago</span>'}
+      ${est ? (BADGE[est]||'') : '<span class="badge b4">pagos pendientes</span>'}
     </div>`;
   }).join('') || '<p class="empty">Sin resultados</p>';
  
@@ -1639,15 +1650,15 @@ function rPagos(vista = 'alumnos') {
       const deudaRows = deudas.map(d =>
         `<div class="pay-deuda-row">
           <span class="pay-deuda-clase" style="color:var(--rd)">🔴 ${d.claseTitle} · ${fmtDisp(d.fecha)}</span>
-          <button class="pay-saldar-btn" onclick="abrirSaldarDeuda(${al.id},${d.claseId},'${d.claseTitle}')">💰 Cobrar</button>
-          ${al.tel ? `<button class="pay-wa-btn" onclick="enviarWADeuda(${al.id},'${d.claseTitle}','${d.fecha}')">💬</button>` : ''}
+          <button class="pay-saldar-btn" onclick="abrirSaldarDeuda(${al.id},${d.claseId},${jsArg(d.claseTitle)})">💰 Cobrar</button>
+          ${al.tel ? `<button class="pay-wa-btn" onclick="enviarWADeuda(${al.id},${jsArg(d.claseTitle)},'${d.fecha}')">💬</button>` : ''}
         </div>`
       ).join('');
  
       const histRows = pagosAl.map(p =>
         `<div class="pay-hist-row">
           <span>${fmtDisp(p.fecha)}</span>
-          <span class="pay-metodo ${p.metodo==='Efectivo'?'ef':'tr'}">${p.metodo==='Efectivo'?'💵 Efectivo':'📲 Transf.'}</span>
+          ${pagoMetodoHtml(p.metodo)}
           <span class="pay-monto-sm">${p.monto>0?fmtMoney(p.monto):'-'}</span>
         </div>`
       ).join('');
@@ -1821,13 +1832,13 @@ async function formClaseEdit(id) {
     <label class="flbl">Cancha</label>
     <input class="finp" id="fc-cancha" type="text" value="${cl.cancha||'Cancha 1'}">
     <label class="flbl">Tipo</label>
-    <select class="finp" id="fc-tipo">
+    <select class="finp" id="fc-tipo" onchange="_onTipoClaseChange()">
       ${['particular','grupal','clínica'].map(t=>`<option value="${t}" ${cl.tipo===t?'selected':''}>${t}</option>`).join('')}
     </select>
     <label class="flbl">Alumnos (hasta 4)</label>
     <div style="margin-bottom:6px"><select class="finp" id="fc-a0" style="margin:0">${_alumnoOpts(ids[0])}</select></div>
-    ${_alumnoSlot(1,ids[1]||null,!!ids[1])}${_alumnoSlot(2,ids[2]||null,!!ids[2])}${_alumnoSlot(3,ids[3]||null,!!ids[3])}
-    <button type="button" id="fc-addal" onclick="_addAlumnoSlot()" class="btn-outline" style="width:100%;margin-bottom:10px;${ids.length>=4?'display:none':''}">+ Agregar alumno</button>
+    ${_alumnoSlot(1,ids[1]||null,cl.tipo==='grupal'||!!ids[1])}${_alumnoSlot(2,ids[2]||null,cl.tipo==='grupal'||!!ids[2])}${_alumnoSlot(3,ids[3]||null,cl.tipo==='grupal'||!!ids[3])}
+    <button type="button" id="fc-addal" onclick="_addAlumnoSlot()" class="btn-outline" style="width:100%;margin-bottom:10px;${(ids.length>=4||cl.tipo==='grupal')?'display:none':''}">+ Agregar alumno</button>
     <label class="flbl">Estado</label>
     <select class="finp" id="fc-estado">
       ${['confirmada','pendiente','cancelada'].map(s=>`<option value="${s}" ${cl.estado===s?'selected':''}>${s}</option>`).join('')}
@@ -2149,14 +2160,27 @@ function _getAlumnosIds() {
     .filter(Boolean)
     .filter((v,i,arr) => arr.indexOf(v) === i);
 }
+function _onTipoClaseChange() {
+  const tipo = document.getElementById('fc-tipo').value;
+  const grupal = tipo === 'grupal';
+  [1,2,3].forEach(i => {
+    const w = document.getElementById('fc-aw'+i);
+    if (!w) return;
+    w.style.display = grupal ? 'flex' : 'none';
+    if (!grupal) { const s = document.getElementById('fc-a'+i); if(s) s.value=''; }
+  });
+  const btn = document.getElementById('fc-addal');
+  if (btn) btn.style.display = grupal ? 'none' : '';
+}
 
 function formClase(alumnoId) {
-  const hoy = fmt(new Date());
+  const fechaInicial = (typeof alumnoId === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(alumnoId)) ? alumnoId : fmt(new Date());
+  const alumnoInicial = Number.isInteger(alumnoId) ? alumnoId : 0;
   openModal('Nueva clase', `
     <label class="flbl">Título *</label>
     <input class="finp" id="fc-titulo" type="text" placeholder="Ej: Clase particular">
     <label class="flbl">Fecha *</label>
-    <input class="finp" id="fc-fecha" type="date" value="${hoy}">
+    <input class="finp" id="fc-fecha" type="date" value="${fechaInicial}">
     <label class="flbl">Hora</label>
     <input class="finp" id="fc-hora" type="time" value="09:00">
     <label class="flbl">Duración (min)</label>
@@ -2164,13 +2188,13 @@ function formClase(alumnoId) {
     <label class="flbl">Cancha</label>
     <input class="finp" id="fc-cancha" type="text" value="Cancha 1" placeholder="Ej: Cancha 1">
     <label class="flbl">Tipo</label>
-    <select class="finp" id="fc-tipo">
+    <select class="finp" id="fc-tipo" onchange="_onTipoClaseChange()">
       <option value="particular">Particular</option>
       <option value="grupal">Grupal</option>
       <option value="clínica">Clínica</option>
     </select>
     <label class="flbl">Alumnos (hasta 4)</label>
-    <div style="margin-bottom:6px"><select class="finp" id="fc-a0" style="margin:0">${_alumnoOpts(alumnoId)}</select></div>
+    <div style="margin-bottom:6px"><select class="finp" id="fc-a0" style="margin:0">${_alumnoOpts(alumnoInicial)}</select></div>
     ${_alumnoSlot(1,null,false)}${_alumnoSlot(2,null,false)}${_alumnoSlot(3,null,false)}
     <button type="button" id="fc-addal" onclick="_addAlumnoSlot()" class="btn-outline" style="width:100%;margin-bottom:10px">+ Agregar alumno</button>
     <label class="flbl">Estado</label>
@@ -3456,6 +3480,8 @@ window.GCAL = GCAL;
     #pay-popup .pp-btn:hover { background:var(--s5); color:var(--tw); }
     #pay-popup .pp-btn.selected-efectivo { background:#2a4a1a; border-color:#4caf50; color:#4caf50; }
     #pay-popup .pp-btn.selected-transferencia { background:#1a2a4a; border-color:#4a9eff; color:#4a9eff; }
+    #pay-popup .pp-btn.selected-mercadopago { background:#1a2a4a; border-color:#4a9eff; color:#4a9eff; }
+    #pay-popup .pp-btn.selected-cuota { background:#143746; border-color:#00cfff; color:#00cfff; }
     #pay-popup .pp-btn.selected-nopago { background:#4a1a1a; border-color:#ff5a5a; color:#ff5a5a; }
     #pay-popup .pp-footer { display:flex; gap:10px; }
     #pay-popup .pp-ok { flex:1; padding:13px; border-radius:12px; background:var(--g); color:#fff;
@@ -3496,6 +3522,8 @@ window.GCAL = GCAL;
     .pay-metodo { font-size:11px; font-weight:700; padding:3px 9px; border-radius:10px; }
     .pay-metodo.ef { background:rgba(0,255,179,0.10); color:var(--g); border:1px solid rgba(0,255,179,0.15); }
     .pay-metodo.tr { background:rgba(61,143,255,0.10); color:var(--bl); border:1px solid rgba(61,143,255,0.15); }
+    .pay-metodo.mp { background:rgba(61,143,255,0.10); color:var(--bl); border:1px solid rgba(61,143,255,0.15); }
+    .pay-metodo.cu { background:rgba(0,207,255,0.10); color:#00cfff; border:1px solid rgba(0,207,255,0.15); }
     .pay-monto-sm { font-size:13px; font-weight:800; color:var(--g); min-width:60px; text-align:right; }
     .pay-reg-btn { width:100%; margin-top:12px; padding:11px; border-radius:12px;
       background:rgba(0,255,179,0.06); border:1px solid rgba(0,255,179,0.15); color:var(--g); font-size:13px;
@@ -3560,16 +3588,17 @@ window.GCAL = GCAL;
     document.getElementById('pp-sub').textContent = `Clase finalizada · ${clase.hora} · ${clase.dur} min`;
  
     let rows = '';
-    if (clase.tipo === 'individual' && clase.alumnoId) {
-      const al = S.alumnos.find(a => a.id === clase.alumnoId);
-      rows = buildAlumnoRow(clase.alumnoId, al ? al.nombre : 'Alumno');
+    const alumnosIds = clase.alumnosIds?.length ? clase.alumnosIds : (clase.alumnoId ? [clase.alumnoId] : []);
+    if (alumnosIds.length) {
+      rows = alumnosIds.map(id => {
+        const al = S.alumnos.find(a => a.id === id);
+        return buildAlumnoRow(id, al ? al.nombre : 'Alumno');
+      }).join('');
+    } else if (S.alumnos.length > 0) {
+      // Si una clase grupal vieja no tiene alumnos asignados, mantener el comportamiento anterior.
+      rows = S.alumnos.map(a => buildAlumnoRow(a.id, a.nombre)).join('');
     } else {
-      // Clase grupal — mostrar todos los alumnos activos
-      if (S.alumnos.length > 0) {
-        rows = S.alumnos.map(a => buildAlumnoRow(a.id, a.nombre)).join('');
-      } else {
-        rows = buildAlumnoRow('grupal', 'Grupo');
-      }
+      rows = buildAlumnoRow('grupal', 'Grupo');
     }
     document.getElementById('pp-alumnos').innerHTML = rows;
     overlay.classList.add('on');
@@ -3580,11 +3609,18 @@ window.GCAL = GCAL;
       selections[key] = metodo;
       const row = document.getElementById(`pp-row-${key}`);
       if (!row) return;
-      row.querySelectorAll('.pp-btn').forEach(b => b.classList.remove('selected-efectivo','selected-transferencia','selected-nopago'));
+      row.querySelectorAll('.pp-btn').forEach(b => b.classList.remove('selected-efectivo','selected-transferencia','selected-mercadopago','selected-cuota','selected-nopago'));
       const btns = row.querySelectorAll('.pp-btn');
-      if (metodo === 'efectivo') btns[0].classList.add('selected-efectivo');
-      if (metodo === 'transferencia') btns[1].classList.add('selected-transferencia');
-      if (metodo === 'nopago') btns[2].classList.add('selected-nopago');
+      const classByMetodo = {
+        efectivo: 'selected-efectivo',
+        transferencia: 'selected-transferencia',
+        mercadopago: 'selected-mercadopago',
+        cuota: 'selected-cuota',
+        nopago: 'selected-nopago'
+      };
+      const order = ['efectivo','transferencia','mercadopago','cuota','nopago'];
+      const idx = order.indexOf(metodo);
+      if (idx >= 0) btns[idx].classList.add(classByMetodo[metodo]);
     },
     async confirm() {
       const hoy = fmt(new Date());
@@ -3596,11 +3632,12 @@ window.GCAL = GCAL;
         if (metodo === 'nopago') {
           registrarNoPago(alumnoId, currentClase.id, currentClase.titulo, currentClase.fecha);
         } else {
-          const metodoMap = { efectivo:'Efectivo', transferencia:'Transferencia', mercadopago:'MercadoPago' };
+          const al = S.alumnos.find(a => a.id === alumnoId);
+          const metodoMap = { efectivo:'Efectivo', transferencia:'Transferencia', mercadopago:'MercadoPago', cuota:'Cuota' };
           const metodoFinal = metodoMap[metodo] || metodo;
           await DB.add('pagos', {
             alumnoId,
-            monto: 0,
+            monto: metodo === 'cuota' ? (parseFloat(al?.cuota) || 0) : 0,
             fecha: hoy,
             metodo: metodoFinal,
             estado: 'pagado'
