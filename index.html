@@ -1178,7 +1178,7 @@ function rAlumnos(q='') {
         <div class="row-name">${al.nombre}</div>
         <div class="row-sub"><span class="lvl-p ${NIVEL_CLS[al.nivel]}">${NIVELES[al.nivel]}</span> · ${al.freq} clase${al.freq>1?'s':''}/sem</div>
       </div>
-      ${est ? (BADGE[est]||'') : '<span class="badge b4">pagos pendientes</span>'}
+      ${est ? (BADGE[est]||'') : '<span class="badge br">pagos pendientes</span>'}
     </div>`;
   }).join('') || '<p class="empty">Sin resultados</p>';
  
