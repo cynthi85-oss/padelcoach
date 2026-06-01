@@ -3791,20 +3791,25 @@ const GCAL = (() => {
         recurrence:  [`RRULE:FREQ=WEEKLY;COUNT=${count}`],
         colorId:     '2'
       };
-      // Borrar evento previo si existe (para reemplazarlo por el recurrente)
-      let prevGcalId = clBase.gcal_event_id || clBase.gcal_imported;
-      if (!prevGcalId) {
-        const events = await fetchExistingEvents();
-        const found  = events.find(ev => (ev.description||'').includes(`[${TAG}:${clBase.id}]`));
-        prevGcalId   = found?.id;
-      }
-      if (prevGcalId) {
+      // Borrar TODOS los eventos del mes con el mismo título para evitar duplicados
+      const allEvents = await fetchExistingEvents();
+      const tituloGcal = `🎾 ${clBase.titulo}`;
+      const fechaBase  = new Date(`${fechasOrdenadas[0]}T12:00:00`);
+      const mesY = fechaBase.getFullYear(), mesM = fechaBase.getMonth();
+      const mesInicio = new Date(mesY, mesM, 1).toISOString();
+      const mesFin    = new Date(mesY, mesM + 1, 0, 23, 59).toISOString();
+      const aEliminar = allEvents.filter(ev => {
+        if (ev.summary !== tituloGcal) return false;
+        const evStart = ev.start?.dateTime || ev.start?.date || '';
+        return evStart >= mesInicio.slice(0,10) && evStart <= mesFin.slice(0,10);
+      });
+      for (const ev of aEliminar) {
         try {
           await apiFetch(
-            `https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${prevGcalId}`,
+            `https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${ev.id}`,
             { method: 'DELETE' }
           );
-        } catch(e2) { /* si ya no existe, ignorar */ }
+        } catch(e2) { /* ignorar si ya no existe */ }
       }
 
       const resp = await apiFetch(
