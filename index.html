@@ -1843,12 +1843,12 @@ async function formClaseEdit(id) {
     <div style="display:flex;gap:8px;margin:6px 0 4px">
       <button type="button" id="fc-rep-no"
         onclick="setRepetir('no')"
-        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--acc);background:var(--acc);color:#fff;font-size:13px;font-weight:600;cursor:pointer">
+        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--acc);background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;box-shadow:0 2px 8px rgba(0,0,0,.18)">
         📌 Solo este día
       </button>
       <button type="button" id="fc-rep-mes"
         onclick="setRepetir('mes')"
-        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--s5);background:var(--s3);color:var(--t1);font-size:13px;font-weight:600;cursor:pointer">
+        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--s5);background:var(--s3);color:var(--t2);font-size:13px;font-weight:600;cursor:pointer;transition:.2s">
         📅 Todo el mes
       </button>
     </div>
@@ -2219,17 +2219,25 @@ function setRepetir(modo) {
     btnNo.style.background  = 'var(--acc)';
     btnNo.style.color       = '#fff';
     btnNo.style.borderColor = 'var(--acc)';
+    btnNo.style.boxShadow   = '0 2px 8px rgba(0,0,0,.18)';
+    btnNo.style.fontWeight  = '700';
     btnMes.style.background  = 'var(--s3)';
-    btnMes.style.color       = 'var(--t1)';
+    btnMes.style.color       = 'var(--t2)';
     btnMes.style.borderColor = 'var(--s5)';
+    btnMes.style.boxShadow   = 'none';
+    btnMes.style.fontWeight  = '600';
     if (info) info.style.display = 'none';
   } else {
     btnMes.style.background  = 'var(--acc)';
     btnMes.style.color       = '#fff';
     btnMes.style.borderColor = 'var(--acc)';
+    btnMes.style.boxShadow   = '0 2px 8px rgba(0,0,0,.18)';
+    btnMes.style.fontWeight  = '700';
     btnNo.style.background  = 'var(--s3)';
-    btnNo.style.color       = 'var(--t1)';
+    btnNo.style.color       = 'var(--t2)';
     btnNo.style.borderColor = 'var(--s5)';
+    btnNo.style.boxShadow   = 'none';
+    btnNo.style.fontWeight  = '600';
     // Calcular y mostrar fechas del mes
     const fechaVal = document.getElementById('fc-fecha')?.value;
     if (fechaVal && info) {
