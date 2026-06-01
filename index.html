@@ -737,6 +737,18 @@ h2{font-size:20px;font-weight:800;color:var(--tw);letter-spacing:-.5px}
 }
 .gasto-cat-row:last-child{border-bottom:none}
 .gasto-cat-row span:last-child{color:var(--tw);font-weight:800}
+
+.rep-btn {
+  flex: 1; padding: 10px 6px; border-radius: 12px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background .2s, color .2s, box-shadow .2s, border-color .2s;
+  border: 2px solid var(--s5); background: var(--s3); color: var(--t2);
+}
+.rep-btn.activo {
+  background: var(--acc) !important; color: #fff !important;
+  border-color: var(--acc) !important; font-weight: 700 !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,.22) !important;
+}
 </style>
 </head>
 <body>
@@ -1841,14 +1853,10 @@ async function formClaseEdit(id) {
     <label class="flbl">Fecha *</label>
     <input class="finp" id="fc-fecha" type="date" value="${cl.fecha}">
     <div style="display:flex;gap:8px;margin:6px 0 4px">
-      <button type="button" id="fc-rep-no"
-        onclick="setRepetir('no')"
-        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--acc);background:var(--acc);color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;box-shadow:0 2px 8px rgba(0,0,0,.18)">
+      <button type="button" id="fc-rep-no" class="rep-btn activo" onclick="setRepetir('no')">
         📌 Solo este día
       </button>
-      <button type="button" id="fc-rep-mes"
-        onclick="setRepetir('mes')"
-        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--s5);background:var(--s3);color:var(--t2);font-size:13px;font-weight:600;cursor:pointer;transition:.2s">
+      <button type="button" id="fc-rep-mes" class="rep-btn" onclick="setRepetir('mes')">
         📅 Todo el mes
       </button>
     </div>
@@ -2216,28 +2224,12 @@ function setRepetir(modo) {
   hidden.value = modo;
 
   if (modo === 'no') {
-    btnNo.style.background  = 'var(--acc)';
-    btnNo.style.color       = '#fff';
-    btnNo.style.borderColor = 'var(--acc)';
-    btnNo.style.boxShadow   = '0 2px 8px rgba(0,0,0,.18)';
-    btnNo.style.fontWeight  = '700';
-    btnMes.style.background  = 'var(--s3)';
-    btnMes.style.color       = 'var(--t2)';
-    btnMes.style.borderColor = 'var(--s5)';
-    btnMes.style.boxShadow   = 'none';
-    btnMes.style.fontWeight  = '600';
+    btnNo.classList.add('activo');
+    btnMes.classList.remove('activo');
     if (info) info.style.display = 'none';
   } else {
-    btnMes.style.background  = 'var(--acc)';
-    btnMes.style.color       = '#fff';
-    btnMes.style.borderColor = 'var(--acc)';
-    btnMes.style.boxShadow   = '0 2px 8px rgba(0,0,0,.18)';
-    btnMes.style.fontWeight  = '700';
-    btnNo.style.background  = 'var(--s3)';
-    btnNo.style.color       = 'var(--t2)';
-    btnNo.style.borderColor = 'var(--s5)';
-    btnNo.style.boxShadow   = 'none';
-    btnNo.style.fontWeight  = '600';
+    btnMes.classList.add('activo');
+    btnNo.classList.remove('activo');
     // Calcular y mostrar fechas del mes
     const fechaVal = document.getElementById('fc-fecha')?.value;
     if (fechaVal && info) {
@@ -2431,15 +2423,11 @@ function formClase(alumnoId) {
     </select>
     <label class="flbl">Repetir clase</label>
     <div style="display:flex;gap:8px;margin-bottom:4px">
-      <button type="button" id="fc-rep-no"
-        onclick="setRepetir('no')"
-        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--acc);background:var(--acc);color:#fff;font-size:13px;font-weight:600;cursor:pointer">
+      <button type="button" id="fc-rep-no" class="rep-btn activo" onclick="setRepetir('no')">
         📌 Solo esta vez
       </button>
-      <button type="button" id="fc-rep-mes"
-        onclick="setRepetir('mes')"
-        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--s5);background:var(--s3);color:var(--t1);font-size:13px;font-weight:600;cursor:pointer">
-        📅 Repetir el mes
+      <button type="button" id="fc-rep-mes" class="rep-btn" onclick="setRepetir('mes')">
+        📅 Todo el mes
       </button>
     </div>
     <div id="fc-rep-info" style="display:none;font-size:12px;color:var(--acc);padding:6px 10px;background:var(--s3);border-radius:8px;margin-bottom:4px"></div>
