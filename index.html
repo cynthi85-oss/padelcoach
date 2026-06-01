@@ -301,6 +301,7 @@ h2{font-size:20px;font-weight:800;color:var(--tw);letter-spacing:-.5px}
 .row.confirmada{border-left:3px solid var(--g)}
 .row.pendiente{border-left:3px solid var(--am)}
 .row.cancelada{border-left:3px solid var(--rd);opacity:.6}
+.row.cambiada{border-left:3px solid var(--am);opacity:.85}
 .row-info{flex:1;min-width:0}
 .row-name{font-size:14px;font-weight:700;color:var(--tw);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row-sub{font-size:11.5px;color:var(--t1);margin-top:2px;font-weight:500}
@@ -1054,7 +1055,7 @@ function pagoMetodoHtml(metodo) {
   const [cls, label] = map[metodo] || ['tr', metodo || 'Sin método'];
   return `<span class="pay-metodo ${cls}">${label}</span>`;
 }
-const BADGE = { pagado:'<span class="badge bg">pagado</span>', pendiente:'<span class="badge ba">pendiente</span>', vencido:'<span class="badge br">vencido</span>', confirmada:'<span class="badge bg">confirmada</span>', cancelada:'<span class="badge br">cancelada</span>', pendiente2:'<span class="badge ba">pendiente</span>' };
+const BADGE = { pagado:'<span class="badge bg">pagado</span>', pendiente:'<span class="badge ba">pendiente</span>', vencido:'<span class="badge br">vencido</span>', confirmada:'<span class="badge bg">confirmada</span>', cancelada:'<span class="badge br">cancelada</span>', cambiada:'<span class="badge ba">🔄 cambiada</span>', pendiente2:'<span class="badge ba">pendiente</span>' };
  
 /* ═══════════════════════════════════════════════════════════════════
    UI PRIMITIVES
@@ -1517,6 +1518,7 @@ async function verClase(id) {
       <button class="btn-outline" style="flex:1;margin:0" onclick="closeModal();formClaseEdit(${id})">Editar</button>
       <button class="btn-danger" style="flex:1" onclick="eliminarClase(${id})">Eliminar</button>
     </div>
+    <button class="btn-outline mt-8" style="width:100%;border-color:var(--am);color:var(--am);font-weight:600" onclick="closeModal();modalCambioClase(${id})">🔄 Cambiar / Cancelar clase</button>
     ${al ? `<button class="btn-wa mt-8" onclick="compartirClaseWA(${id})">💬 Compartir por WhatsApp</button>` : ''}
     ${botonesCobro}
   `, closeModal);
@@ -2040,6 +2042,107 @@ async function eliminarAlumno(id) {
   for (const n of ns) await DB.del('notas', n.id);
   await loadAll(); closeModal(); rAlumnos(); toast('Alumno eliminado');
 }
+async function modalCambioClase(id) {
+  const cl = S.clases.find(c => c.id === id);
+  if (!cl) return;
+
+  // Paso 1: elegir tipo (cambio o cancelacion) + motivo
+  openModal('🔄 Cambiar / Cancelar clase', `
+    <div style="font-size:13px;color:var(--t2);margin-bottom:12px">
+      <strong>${cl.titulo}</strong> · ${fmtDisp(cl.fecha)} · ${cl.hora}hs
+    </div>
+    <label class="flbl">¿Qué querés hacer?</label>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button type="button" id="cc-tipo-cambio" class="rep-btn activo" onclick="setCCTipo('cambio')">
+        🔄 Cambio de fecha
+      </button>
+      <button type="button" id="cc-tipo-cancel" class="rep-btn" onclick="setCCTipo('cancelacion')">
+        ❌ Cancelación
+      </button>
+    </div>
+    <input type="hidden" id="cc-tipo" value="cambio">
+    <label class="flbl">Motivo *</label>
+    <input class="finp" id="cc-motivo" type="text" placeholder="Ej: lluvia, problema de salud...">
+    <div id="cc-fecha-alt-wrap">
+      <label class="flbl">Fecha alternativa</label>
+      <input class="finp" id="cc-fecha-alt" type="date">
+      <div style="font-size:12px;color:var(--t2);margin-top:4px">
+        Dejá vacío para dejar pendiente la nueva fecha
+      </div>
+    </div>
+  `, async () => {
+    const tipo    = document.getElementById('cc-tipo').value;
+    const motivo  = document.getElementById('cc-motivo').value.trim();
+    if (!motivo) { toast('Ingresá el motivo', 'err'); return; }
+    const fechaAlt = document.getElementById('cc-fecha-alt')?.value || '';
+
+    if (tipo === 'cancelacion') {
+      // Cancelar: estado cancelada, guardar motivo, color rojo en GCal
+      const clActualizada = {
+        ...cl,
+        estado: 'cancelada',
+        motivo_cambio: motivo,
+        fecha_alt: '',
+      };
+      await DB.put('clases', clActualizada);
+      await loadAll();
+      // Actualizar color en GCal a rojo (colorId 11)
+      if (GCAL.isConnected()) GCAL.actualizarColorClase(clActualizada, '11').catch(() => {});
+      closeModal();
+      toast('❌ Clase cancelada — ' + motivo);
+      rClases(cl.fecha);
+
+    } else {
+      // Cambio: estado cambiada, guardar motivo
+      const clActualizada = {
+        ...cl,
+        estado: 'cambiada',
+        motivo_cambio: motivo,
+        fecha_alt: fechaAlt || 'pendiente',
+      };
+      await DB.put('clases', clActualizada);
+
+      // Si hay fecha alternativa, crear clase nueva
+      if (fechaAlt) {
+        await DB.add('clases', {
+          titulo:    cl.titulo,
+          fecha:     fechaAlt,
+          hora:      cl.hora,
+          dur:       cl.dur,
+          cancha:    cl.cancha,
+          tipo:      cl.tipo,
+          alumnoId:  cl.alumnoId,
+          alumnosIds: cl.alumnosIds,
+          estado:    'confirmada',
+          notas:     `Recuperación de clase del ${fmtDisp(cl.fecha)}. Motivo: ${motivo}`,
+        });
+      }
+      await loadAll();
+      // Color amarillo en GCal (colorId 5)
+      if (GCAL.isConnected()) GCAL.actualizarColorClase(clActualizada, '5').catch(() => {});
+      closeModal();
+      toast(fechaAlt
+        ? `🔄 Clase cambiada → ${fmtDisp(fechaAlt)}`
+        : '🔄 Clase marcada como cambiada — fecha pendiente');
+      rClases(cl.fecha);
+    }
+  }, '✅ Confirmar');
+}
+
+function setCCTipo(tipo) {
+  document.getElementById('cc-tipo').value = tipo;
+  const btnC = document.getElementById('cc-tipo-cambio');
+  const btnX = document.getElementById('cc-tipo-cancel');
+  const wrap = document.getElementById('cc-fecha-alt-wrap');
+  if (tipo === 'cambio') {
+    btnC.classList.add('activo'); btnX.classList.remove('activo');
+    if (wrap) wrap.style.display = '';
+  } else {
+    btnX.classList.add('activo'); btnC.classList.remove('activo');
+    if (wrap) wrap.style.display = 'none';
+  }
+}
+
 
 async function eliminarClase(id) {
   const ok = await confirm('¿Eliminar esta clase?');
@@ -3832,6 +3935,29 @@ const GCAL = (() => {
     }
   }
 
+  // ── actualizarColorClase: cambia color del evento en GCal ─────────
+  async function actualizarColorClase(cl, colorId) {
+    // colorId: '5'=amarillo, '11'=rojo, '2'=verde
+    try {
+      await ensureToken();
+      if (!dedicatedCalId) await ensureDedicatedCalendar();
+      const calEnc = encodeURIComponent(dedicatedCalId);
+      let gcalId = cl.gcal_event_id || cl.gcal_imported;
+      if (!gcalId) {
+        const events = await fetchExistingEvents();
+        const found  = events.find(ev => (ev.description||'').includes(`[${TAG}:${cl.id}]`));
+        gcalId = found?.id;
+        if (!gcalId) return;
+      }
+      await apiFetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${gcalId}`,
+        { method: 'PATCH', body: JSON.stringify({ colorId }) }
+      );
+    } catch(e) {
+      console.error('actualizarColorClase:', e);
+    }
+  }
+
   // ── deleteOne: al eliminar una clase en la app ────────────────────
   async function deleteOne(cl) {
     try {
@@ -3980,6 +4106,7 @@ const GCAL = (() => {
     async ensureToken(force) { await ensureToken(force); },
     syncOne,
     syncRecurrente,
+    actualizarColorClase,
     deleteOne,
     importFromGCal: () => syncBidireccional(false),
     syncManual() { setLoading(true); syncBidireccional(true).finally(() => setLoading(false)); },
