@@ -3794,19 +3794,26 @@ const GCAL = (() => {
       // Borrar TODOS los eventos del mes con el mismo título para evitar duplicados
       const allEvents = await fetchExistingEvents();
       const tituloGcal = `🎾 ${clBase.titulo}`;
-      const fechaBase  = new Date(`${fechasOrdenadas[0]}T12:00:00`);
-      const mesY = fechaBase.getFullYear(), mesM = fechaBase.getMonth();
-      const mesInicio = new Date(mesY, mesM, 1).toISOString();
-      const mesFin    = new Date(mesY, mesM + 1, 0, 23, 59).toISOString();
-      const aEliminar = allEvents.filter(ev => {
-        if (ev.summary !== tituloGcal) return false;
-        const evStart = ev.start?.dateTime || ev.start?.date || '';
-        return evStart >= mesInicio.slice(0,10) && evStart <= mesFin.slice(0,10);
-      });
-      for (const ev of aEliminar) {
+      const fechaBase0 = new Date(`${fechasOrdenadas[0]}T12:00:00`);
+      const mesY = fechaBase0.getFullYear(), mesM = fechaBase0.getMonth();
+      const mesInicioStr = `${mesY}-${String(mesM+1).padStart(2,'0')}-01`;
+      const ultimoDiaMes = new Date(mesY, mesM+1, 0).getDate();
+      const mesFinStr    = `${mesY}-${String(mesM+1).padStart(2,'0')}-${String(ultimoDiaMes).padStart(2,'0')}`;
+      // Ids únicos (singleEvents expande recurrentes, pueden tener id base_eventId)
+      const idsAEliminar = new Set();
+      for (const ev of allEvents) {
+        if (ev.summary !== tituloGcal) continue;
+        const evFecha = (ev.start?.dateTime || ev.start?.date || '').slice(0,10);
+        if (evFecha >= mesInicioStr && evFecha <= mesFinStr) {
+          // Para eventos recurrentes, borrar la serie completa usando el id base
+          const baseId = ev.recurringEventId || ev.id;
+          idsAEliminar.add(baseId);
+        }
+      }
+      for (const evId of idsAEliminar) {
         try {
           await apiFetch(
-            `https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${ev.id}`,
+            `https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${evId}`,
             { method: 'DELETE' }
           );
         } catch(e2) { /* ignorar si ya no existe */ }
