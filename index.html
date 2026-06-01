@@ -3822,7 +3822,7 @@ const GCAL = (() => {
       ].filter(Boolean).join('\n'),
       start: { dateTime: fmtLocal(startDt), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
       end:   { dateTime: fmtLocal(endDt),   timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
-      colorId: '2'
+      colorId: (cl.tipo||'').toLowerCase().includes('reserva') ? '8' : '2'  // 8=grafito, 2=verde
     };
   }
 
