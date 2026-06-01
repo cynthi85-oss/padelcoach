@@ -302,11 +302,10 @@ h2{font-size:20px;font-weight:800;color:var(--tw);letter-spacing:-.5px}
 .row.pendiente{border-left:3px solid var(--am)}
 .row.cancelada{border-left:3px solid var(--rd);opacity:.6}
 .row.cambiada{border-left:3px solid var(--am);opacity:.85}
-.row.tipo-particular{background:linear-gradient(90deg,rgba(0,255,179,0.12) 0%,transparent 60%) !important}
-.row.tipo-grupal{background:linear-gradient(90deg,rgba(0,255,179,0.12) 0%,transparent 60%) !important}
-.row.tipo-reserva{background:linear-gradient(90deg,rgba(120,120,120,0.1) 0%,transparent 60%) !important;opacity:.8}
-.row.tipo-particular .row-time,.row.tipo-grupal .row-time{color:#00ffb3}
-.row.tipo-reserva .row-time{color:#888}
+.row.tipo-verde{background:linear-gradient(90deg,rgba(0,255,179,0.12) 0%,transparent 60%) !important}
+.row.tipo-verde .row-time{color:#00ffb3 !important}
+.row.tipo-reserva{background:linear-gradient(90deg,rgba(120,120,120,0.12) 0%,transparent 60%) !important;opacity:.8}
+.row.tipo-reserva .row-time{color:#888 !important}
 .row-info{flex:1;min-width:0}
 .row-name{font-size:14px;font-weight:700;color:var(--tw);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row-sub{font-size:11.5px;color:var(--t1);margin-top:2px;font-weight:500}
@@ -1163,7 +1162,8 @@ function rInicio() {
  
   let claseRows = clasesHoy.length ? clasesHoy.map(cl => {
     const al = cl.alumnoId ? S.alumnos.find(a=>a.id===cl.alumnoId) : null;
-    const tipoClass = `tipo-${cl.tipo||'particular'}`;
+    const tipoNorm = (cl.tipo||'particular').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+    const tipoClass = tipoNorm.includes('reserva') ? 'tipo-reserva' : 'tipo-verde';
     return `<div class="row ${tipoClass} ${cl.estado||''}" onclick="verClase(${cl.id})">
       <div class="row-time">${cl.hora}</div>
       <div class="row-info"><div class="row-name">${cl.titulo}</div><div class="row-sub">${cl.cancha} · ${cl.dur}min${al?' · '+al.nombre.split(' ')[0]:''}</div></div>
@@ -1475,7 +1475,8 @@ function rClases(selDate) {
   const clasesDia = S.clases.filter(c=>c.fecha===sel&&(!filtroAlumnoClases||c.alumnoId===filtroAlumnoClases)).sort((a,b)=>a.hora.localeCompare(b.hora));
   const claseRows = clasesDia.map(cl => {
     const al = cl.alumnoId ? S.alumnos.find(a=>a.id===cl.alumnoId) : null;
-    const tipoClass = `tipo-${cl.tipo||'particular'}`;
+    const tipoNorm = (cl.tipo||'particular').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+    const tipoClass = tipoNorm.includes('reserva') ? 'tipo-reserva' : 'tipo-verde';
     return `<div class="row ${tipoClass}" onclick="verClase(${cl.id})">
       <div class="row-time">${cl.hora}<br><span style="font-size:10px">${cl.dur}min</span></div>
       <div class="row-info"><div class="row-name">${cl.titulo}</div><div class="row-sub">${cl.cancha}${al?' · '+al.nombre.split(' ')[0]:cl.tipo==='reserva'?' · reserva':' · grupal'}</div></div>
