@@ -3791,6 +3791,22 @@ const GCAL = (() => {
         recurrence:  [`RRULE:FREQ=WEEKLY;COUNT=${count}`],
         colorId:     '2'
       };
+      // Borrar evento previo si existe (para reemplazarlo por el recurrente)
+      let prevGcalId = clBase.gcal_event_id || clBase.gcal_imported;
+      if (!prevGcalId) {
+        const events = await fetchExistingEvents();
+        const found  = events.find(ev => (ev.description||'').includes(`[${TAG}:${clBase.id}]`));
+        prevGcalId   = found?.id;
+      }
+      if (prevGcalId) {
+        try {
+          await apiFetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${prevGcalId}`,
+            { method: 'DELETE' }
+          );
+        } catch(e2) { /* si ya no existe, ignorar */ }
+      }
+
       const resp = await apiFetch(
         `https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events`,
         { method: 'POST', body: JSON.stringify(event) }
