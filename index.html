@@ -3730,7 +3730,9 @@ const GCAL = (() => {
 
   // ── deleteOne: al eliminar una clase en la app ────────────────────
   async function deleteOne(cl) {
-    if (!accessToken) return;
+    try {
+      await ensureToken();
+    } catch(e) { return; } // sin token, no se puede borrar
     try {
       if (!dedicatedCalId) await ensureDedicatedCalendar();
       const calEnc = encodeURIComponent(dedicatedCalId);
