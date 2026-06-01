@@ -2199,12 +2199,72 @@ function setCCTipo(tipo) {
 
 
 async function eliminarClase(id) {
-  const ok = await confirm('¿Eliminar esta clase?');
-  if (!ok) return;
   const cl = S.clases.find(c => c.id === id);
+  if (!cl) return;
+
+  // Buscar si hay más clases del mismo mes con mismo título y alumno
+  const mesStr = cl.fecha.slice(0, 7); // "2026-06"
+  const hermanasDelMes = S.clases.filter(c =>
+    c.id !== id &&
+    c.fecha.slice(0, 7) === mesStr &&
+    c.titulo === cl.titulo &&
+    (c.alumnoId === cl.alumnoId || JSON.stringify(c.alumnosIds) === JSON.stringify(cl.alumnosIds))
+  );
+
+  if (hermanasDelMes.length > 0) {
+    // Es una clase mensual — preguntar qué eliminar
+    openModal('🗑️ Eliminar clase', `
+      <div style="font-size:13px;color:var(--t2);margin-bottom:16px;line-height:1.5">
+        <strong>${cl.titulo}</strong><br>
+        ${fmtDisp(cl.fecha)} · ${cl.hora}hs
+      </div>
+      <div style="font-size:13px;color:var(--t2);margin-bottom:16px">
+        Esta clase tiene <strong>${hermanasDelMes.length + 1} clases</strong> programadas este mes.
+        ¿Qué querés eliminar?
+      </div>
+      <button class="btn-warning" style="margin-bottom:8px" onclick="eliminarClaseSolo(${id})">
+        🗑️ Solo esta clase (${fmtDisp(cl.fecha)})
+      </button>
+      <button class="btn-danger" onclick="eliminarClasesMes(${id})">
+        ❌ Todas las clases del mes (${hermanasDelMes.length + 1} clases)
+      </button>
+    `, null);
+  } else {
+    // Clase individual — confirmar normal
+    const ok = await confirm('¿Eliminar esta clase?');
+    if (!ok) return;
+    if (GCAL.isConnected()) GCAL.deleteOne(cl).catch(() => {});
+    await DB.del('clases', id);
+    await loadAll(); closeModal(); rClases(); toast('Clase eliminada');
+  }
+}
+
+async function eliminarClaseSolo(id) {
+  const cl = S.clases.find(c => c.id === id);
+  const ok = await confirm('¿Eliminar solo esta clase?');
+  if (!ok) return;
   if (cl && GCAL.isConnected()) GCAL.deleteOne(cl).catch(() => {});
   await DB.del('clases', id);
   await loadAll(); closeModal(); rClases(); toast('Clase eliminada');
+}
+
+async function eliminarClasesMes(id) {
+  const cl = S.clases.find(c => c.id === id);
+  if (!cl) return;
+  const mesStr = cl.fecha.slice(0, 7);
+  const todasDelMes = S.clases.filter(c =>
+    c.fecha.slice(0, 7) === mesStr &&
+    c.titulo === cl.titulo &&
+    (c.alumnoId === cl.alumnoId || JSON.stringify(c.alumnosIds) === JSON.stringify(cl.alumnosIds))
+  );
+  const ok = await confirm(`¿Eliminar las ${todasDelMes.length} clases de este mes?`);
+  if (!ok) return;
+  for (const c of todasDelMes) {
+    if (GCAL.isConnected()) GCAL.deleteOne(c).catch(() => {});
+    await DB.del('clases', c.id);
+  }
+  await loadAll(); closeModal(); rClases();
+  toast(`🗑️ ${todasDelMes.length} clases eliminadas`);
 }
 
 async function eliminarPago(id) {
