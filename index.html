@@ -1919,6 +1919,22 @@ async function formClaseEdit(id) {
     await loadAll(); closeModal();
     toast(repetirMes ? 'Clase actualizada + ' + (creadas-1) + ' nuevas este mes' : 'Clase actualizada');
     rClases(fecha);
+    if (GCAL.isConnected()) {
+      if (repetirMes) {
+        const fechaBaseE = new Date(fecha + 'T12:00:00');
+        const yE = fechaBaseE.getFullYear(), mE = fechaBaseE.getMonth();
+        const dowE = fechaBaseE.getDay();
+        const todasFechasE = [];
+        const ultimoDiaE = new Date(yE, mE + 1, 0).getDate();
+        for (let dE = 1; dE <= ultimoDiaE; dE++) {
+          const fE = new Date(yE, mE, dE);
+          if (fE.getDay() === dowE) todasFechasE.push(fmt(fE));
+        }
+        GCAL.syncRecurrente(claseEditada, todasFechasE).catch(() => {});
+      } else {
+        GCAL.syncOne(claseEditada).catch(() => {});
+      }
+    }
   });
 }
 
@@ -2469,8 +2485,25 @@ function formClase(alumnoId) {
     await loadAll(); closeModal();
     toast(repetirMes ? 'Clase creada × ' + creadas + ' veces este mes' : 'Clase agregada');
     rClases(fecha);
-    const clNueva = S.clases.find(c => c.id === newId);
-    if (clNueva && GCAL.isConnected()) GCAL.syncOne(clNueva).catch(() => {});
+    if (GCAL.isConnected()) {
+      if (repetirMes) {
+        // Recolectar todas las fechas creadas este mes para ese día
+        const fechaBase2 = new Date(fecha + 'T12:00:00');
+        const y2 = fechaBase2.getFullYear(), m2 = fechaBase2.getMonth();
+        const dow2 = fechaBase2.getDay();
+        const todasFechas = [];
+        const ultimoDia2 = new Date(y2, m2 + 1, 0).getDate();
+        for (let d2 = 1; d2 <= ultimoDia2; d2++) {
+          const f2 = new Date(y2, m2, d2);
+          if (f2.getDay() === dow2) todasFechas.push(fmt(f2));
+        }
+        const clBase = S.clases.find(c => c.id === newId);
+        if (clBase) GCAL.syncRecurrente(clBase, todasFechas).catch(() => {});
+      } else {
+        const clNueva = S.clases.find(c => c.id === newId);
+        if (clNueva) GCAL.syncOne(clNueva).catch(() => {});
+      }
+    }
     if (claseBase.tipo === 'grupal' && alumnosIds.length) {
       notificarClaseGrupalWA(claseBase, alumnosIds);
     } else if (claseBase.alumnoId) {
@@ -3728,6 +3761,49 @@ const GCAL = (() => {
     }
   }
 
+  // ── syncRecurrente: crea un evento semanal recurrente en GCal ─────
+  async function syncRecurrente(clBase, todasFechas) {
+    try {
+      await ensureToken();
+      if (!dedicatedCalId) await ensureDedicatedCalendar();
+      const calEnc = encodeURIComponent(dedicatedCalId);
+      const al = clBase.alumnoId ? S.alumnos.find(a => a.id === clBase.alumnoId) : null;
+      const pad = n => String(n).padStart(2,'0');
+      const fmtLocal = d =>
+        `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+      const fechasOrdenadas = [...todasFechas].sort();
+      const startDt = new Date(`${fechasOrdenadas[0]}T${clBase.hora}:00`);
+      const endDt   = new Date(startDt.getTime() + (clBase.dur||60) * 60000);
+      const count   = fechasOrdenadas.length;
+      const tz      = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const event   = {
+        summary:  `🎾 ${clBase.titulo}`,
+        location: clBase.cancha || '',
+        description: [
+          `Tipo: ${clBase.tipo || 'clase'}`,
+          al ? `Alumno: ${al.nombre}` : '',
+          clBase.notas ? `Notas: ${clBase.notas}` : '',
+          `[${TAG}:${clBase.id}]`,
+          `[recurrente_mes]`
+        ].filter(Boolean).join('\n'),
+        start:       { dateTime: fmtLocal(startDt), timeZone: tz },
+        end:         { dateTime: fmtLocal(endDt),   timeZone: tz },
+        recurrence:  [`RRULE:FREQ=WEEKLY;COUNT=${count}`],
+        colorId:     '2'
+      };
+      const resp = await apiFetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events`,
+        { method: 'POST', body: JSON.stringify(event) }
+      );
+      if (resp?.id) {
+        const cl2 = { ...clBase, gcal_event_id: resp.id };
+        await DB.put('clases', cl2);
+      }
+    } catch(e) {
+      console.error('syncRecurrente:', e);
+    }
+  }
+
   // ── deleteOne: al eliminar una clase en la app ────────────────────
   async function deleteOne(cl) {
     try {
@@ -3875,6 +3951,7 @@ const GCAL = (() => {
     initGIS() { return initGIS(); },
     async ensureToken(force) { await ensureToken(force); },
     syncOne,
+    syncRecurrente,
     deleteOne,
     importFromGCal: () => syncBidireccional(false),
     syncManual() { setLoading(true); syncBidireccional(true).finally(() => setLoading(false)); },
