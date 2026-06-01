@@ -2204,11 +2204,13 @@ async function eliminarClase(id) {
 
   // Buscar si hay más clases del mismo mes con mismo título y alumno
   const mesStr = cl.fecha.slice(0, 7); // "2026-06"
+  // Detectar clases hermanas: mismo título + mismo mes + misma hora
+  // (suficiente para identificar una serie mensual)
   const hermanasDelMes = S.clases.filter(c =>
     c.id !== id &&
     c.fecha.slice(0, 7) === mesStr &&
     c.titulo === cl.titulo &&
-    (c.alumnoId === cl.alumnoId || JSON.stringify(c.alumnosIds) === JSON.stringify(cl.alumnosIds))
+    c.hora === cl.hora
   );
 
   if (hermanasDelMes.length > 0) {
@@ -2255,7 +2257,7 @@ async function eliminarClasesMes(id) {
   const todasDelMes = S.clases.filter(c =>
     c.fecha.slice(0, 7) === mesStr &&
     c.titulo === cl.titulo &&
-    (c.alumnoId === cl.alumnoId || JSON.stringify(c.alumnosIds) === JSON.stringify(cl.alumnosIds))
+    c.hora === cl.hora
   );
   const ok = await confirm(`¿Eliminar las ${todasDelMes.length} clases de este mes?`);
   if (!ok) return;
