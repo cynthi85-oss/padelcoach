@@ -1351,7 +1351,22 @@ async function verAlumno(id) {
       <div class="inf"><span class="inf-lbl">Email</span><span class="inf-val" style="font-size:13px">${al.email||'—'}</span></div>
       <div class="inf"><span class="inf-lbl">Clases / semana</span><span class="inf-val">${al.freq}</span></div>
       <div class="inf"><span class="inf-lbl">Alumno desde</span><span class="inf-val">${fmtDisp(al.desde)}</span></div>
+      ${al.diasClase && al.diasClase.length > 0 ? `
+        <div class="divider"></div>
+        <div class="inf"><span class="inf-lbl">📅 Días de clase</span><span class="inf-val">${(al.diasClase||[]).map(i=>['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][i]).join(', ')}</span></div>
+        <div class="inf"><span class="inf-lbl">🕐 Hora</span><span class="inf-val">${al.horaClase||'09:00'}hs · ${al.durClase||60}min</span></div>
+        <div class="inf"><span class="inf-lbl">🎾 Cancha</span><span class="inf-val">${al.canchaClase||'—'}</span></div>
+      ` : ''}
     </div>
+    ${al.diasClase && al.diasClase.length > 0 ? `
+      <button class="btn-primary" onclick="generarClasesMes(${id})" style="margin-top:4px;width:100%">
+        📅 Generar clases de este mes
+      </button>
+    ` : `
+      <button class="btn-outline" onclick="formAlumno(${id})" style="margin-top:4px;width:100%;border-color:var(--acc);color:var(--acc)">
+        📅 Configurar horario fijo
+      </button>
+    `}
     <div class="t-sec">Progreso técnico ${ultima?`— actualizado ${fmtDisp(ultima.fecha)}`:''}</div>
     <div class="card">
       ${skillBars}
@@ -1825,6 +1840,20 @@ async function formClaseEdit(id) {
     <input class="finp" id="fc-titulo" type="text" value="${cl.titulo||''}">
     <label class="flbl">Fecha *</label>
     <input class="finp" id="fc-fecha" type="date" value="${cl.fecha}">
+    <div style="display:flex;gap:8px;margin:6px 0 4px">
+      <button type="button" id="fc-rep-no"
+        onclick="setRepetir('no')"
+        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--acc);background:var(--acc);color:#fff;font-size:13px;font-weight:600;cursor:pointer">
+        📌 Solo este día
+      </button>
+      <button type="button" id="fc-rep-mes"
+        onclick="setRepetir('mes')"
+        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--s5);background:var(--s3);color:var(--t1);font-size:13px;font-weight:600;cursor:pointer">
+        📅 Todo el mes
+      </button>
+    </div>
+    <div id="fc-rep-info" style="display:none;font-size:12px;color:var(--acc);padding:6px 10px;background:var(--s3);border-radius:8px;margin-bottom:8px"></div>
+    <input type="hidden" id="fc-repetir" value="no">
     <label class="flbl">Hora</label>
     <input class="finp" id="fc-hora" type="time" value="${cl.hora||'09:00'}">
     <label class="flbl">Duración (min)</label>
@@ -1850,7 +1879,7 @@ async function formClaseEdit(id) {
     const fecha  = document.getElementById('fc-fecha').value;
     if (!titulo || !fecha) { toast('Completá título y fecha', 'err'); return; }
     const alumnosIds = _getAlumnosIds();
-    await DB.put('clases', {
+    const claseEditada = {
       ...cl, titulo, fecha,
       hora:      document.getElementById('fc-hora').value,
       dur:       parseInt(document.getElementById('fc-dur').value) || 60,
@@ -1860,8 +1889,28 @@ async function formClaseEdit(id) {
       alumnosIds,
       estado:    document.getElementById('fc-estado').value,
       notas:     document.getElementById('fc-notas').value.trim(),
-    });
-    await loadAll(); closeModal(); toast('Clase actualizada'); rClases(fecha);
+    };
+    await DB.put('clases', claseEditada);
+    const repetirMes = document.getElementById('fc-repetir')?.value === 'mes';
+    let creadas = 1;
+    if (repetirMes) {
+      const fechaBase = new Date(fecha + 'T12:00:00');
+      const y = fechaBase.getFullYear(), m = fechaBase.getMonth();
+      const ultimoDia = new Date(y, m + 1, 0).getDate();
+      const dowBase = fechaBase.getDay();
+      const clasesSinBase = { ...claseEditada };
+      delete clasesSinBase.id;
+      for (let d = 1; d <= ultimoDia; d++) {
+        const f = new Date(y, m, d);
+        if (f.getDay() === dowBase && fmt(f) !== fecha) {
+          const existe = S.clases.find(c => c.fecha === fmt(f) && c.alumnoId === claseEditada.alumnoId && c.id !== cl.id);
+          if (!existe) { await DB.add('clases', { ...clasesSinBase, fecha: fmt(f) }); creadas++; }
+        }
+      }
+    }
+    await loadAll(); closeModal();
+    toast(repetirMes ? 'Clase actualizada + ' + (creadas-1) + ' nuevas este mes' : 'Clase actualizada');
+    rClases(fecha);
   });
 }
 
@@ -2113,18 +2162,42 @@ function formAlumno(id) {
       <input type="file" id="fa-foto-input" accept="image/*" capture="user" style="display:none" onchange="previewFoto(this)">
     </div>
     <input type="hidden" id="fa-foto-data" value="${al?.foto||''}">
+    <div class="divider" style="margin:14px 0 10px"></div>
+    <div style="font-size:13px;font-weight:600;color:var(--acc);margin-bottom:8px">📅 Horario fijo semanal</div>
+    <label class="flbl">Día(s) de clase</label>
+    <div id="fa-dias-wrap" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      ${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map((d,i)=>{
+        const sel = al?.diasClase && al.diasClase.includes(i);
+        return `<button type="button" id="fa-dia-${i}" onclick="toggleDiaBtn(${i})"
+          style="padding:6px 12px;border-radius:20px;border:2px solid ${sel?'var(--acc)':'var(--s5)'};
+          background:${sel?'var(--acc)':'var(--s3)'};color:${sel?'#fff':'var(--t1)'};
+          font-size:13px;font-weight:600;cursor:pointer;transition:.2s"
+          data-sel="${sel?'1':'0'}">${d}</button>`;
+      }).join('')}
+    </div>
+    <label class="flbl">Hora de clase</label>
+    <input class="finp" id="fa-hora" type="time" value="${al?.horaClase||'09:00'}">
+    <label class="flbl">Duración (min)</label>
+    <input class="finp" id="fa-dur" type="number" value="${al?.durClase||60}" min="15" step="15">
+    <label class="flbl">Cancha habitual</label>
+    <input class="finp" id="fa-cancha" type="text" value="${al?.canchaClase||'Cancha 1'}" placeholder="Ej: Cancha 1">
   `, async () => {
     const nombre = document.getElementById('fa-nombre').value.trim();
     if (!nombre) { toast('Ingresá un nombre', 'err'); return; }
+    const diasClase = [0,1,2,3,4,5,6].filter(i => document.getElementById(`fa-dia-${i}`)?.dataset.sel === '1');
     const data = {
       nombre,
-      tel:   document.getElementById('fa-tel').value.trim(),
-      email: document.getElementById('fa-email').value.trim(),
-      nivel: parseInt(document.getElementById('fa-nivel').value) || 0,
-      freq:  parseInt(document.getElementById('fa-freq').value) || 1,
-      color: document.getElementById('fa-color').value,
-      foto:  document.getElementById('fa-foto-data').value || '',
-      desde: al?.desde || fmt(new Date()),
+      tel:        document.getElementById('fa-tel').value.trim(),
+      email:      document.getElementById('fa-email').value.trim(),
+      nivel:      parseInt(document.getElementById('fa-nivel').value) || 0,
+      freq:       parseInt(document.getElementById('fa-freq').value) || 1,
+      color:      document.getElementById('fa-color').value,
+      foto:       document.getElementById('fa-foto-data').value || '',
+      desde:      al?.desde || fmt(new Date()),
+      diasClase,
+      horaClase:  document.getElementById('fa-hora').value || '09:00',
+      durClase:   parseInt(document.getElementById('fa-dur').value) || 60,
+      canchaClase: document.getElementById('fa-cancha').value.trim() || 'Cancha 1',
     };
     if (al) { data.id = id; await DB.put('alumnos', data); }
     else await DB.add('alumnos', data);
@@ -2133,6 +2206,148 @@ function formAlumno(id) {
     rAlumnos();
   });
 }
+
+function setRepetir(modo) {
+  const btnNo  = document.getElementById('fc-rep-no');
+  const btnMes = document.getElementById('fc-rep-mes');
+  const info   = document.getElementById('fc-rep-info');
+  const hidden = document.getElementById('fc-repetir');
+  if (!btnNo || !btnMes || !hidden) return;
+  hidden.value = modo;
+
+  if (modo === 'no') {
+    btnNo.style.background  = 'var(--acc)';
+    btnNo.style.color       = '#fff';
+    btnNo.style.borderColor = 'var(--acc)';
+    btnMes.style.background  = 'var(--s3)';
+    btnMes.style.color       = 'var(--t1)';
+    btnMes.style.borderColor = 'var(--s5)';
+    if (info) info.style.display = 'none';
+  } else {
+    btnMes.style.background  = 'var(--acc)';
+    btnMes.style.color       = '#fff';
+    btnMes.style.borderColor = 'var(--acc)';
+    btnNo.style.background  = 'var(--s3)';
+    btnNo.style.color       = 'var(--t1)';
+    btnNo.style.borderColor = 'var(--s5)';
+    // Calcular y mostrar fechas del mes
+    const fechaVal = document.getElementById('fc-fecha')?.value;
+    if (fechaVal && info) {
+      const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+      const fechaBase = new Date(fechaVal + 'T12:00:00');
+      const y = fechaBase.getFullYear(), m = fechaBase.getMonth();
+      const ultimoDia = new Date(y, m + 1, 0).getDate();
+      const dowBase = fechaBase.getDay();
+      const fechas = [];
+      for (let d = 1; d <= ultimoDia; d++) {
+        const f = new Date(y, m, d);
+        if (f.getDay() === dowBase) fechas.push(f);
+      }
+      info.style.display = 'block';
+      info.innerHTML = '📅 Se crearán clases los ' + DIAS[dowBase] + ': ' +
+        fechas.map(f => f.getDate() + '/' + (f.getMonth()+1)).join(', ') +
+        ' <span style="color:var(--t2)">(' + fechas.length + ' clases)</span>';
+    }
+  }
+}
+
+
+function toggleDiaBtn(i) {
+  const btn = document.getElementById(`fa-dia-${i}`);
+  if (!btn) return;
+  const sel = btn.dataset.sel === '1';
+  btn.dataset.sel = sel ? '0' : '1';
+  btn.style.background = sel ? 'var(--s3)' : 'var(--acc)';
+  btn.style.color = sel ? 'var(--t1)' : '#fff';
+  btn.style.borderColor = sel ? 'var(--s5)' : 'var(--acc)';
+}
+
+async function generarClasesMes(alumnoId) {
+  const al = S.alumnos.find(a => a.id === alumnoId);
+  if (!al) return;
+  if (!al.diasClase || al.diasClase.length === 0) {
+    toast('El alumno no tiene días de clase configurados', 'err');
+    openModal('Sin horario configurado', `
+      <p style="color:var(--t2);line-height:1.6">
+        <strong>${al.nombre}</strong> no tiene días fijos asignados.<br><br>
+        Editá el alumno y configurá su horario semanal (día, hora y cancha).
+      </p>
+    `, null, null, '✏️ Ir a editar', () => { closeModal(); formAlumno(alumnoId); });
+    return;
+  }
+
+  const hoy = new Date();
+  const y = hoy.getFullYear(), m = hoy.getMonth();
+  const DIAS_NOMBRE = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  const ultimoDia = new Date(y, m + 1, 0).getDate();
+  const fechasAGenerar = [];
+  for (let d = 1; d <= ultimoDia; d++) {
+    const fecha = new Date(y, m, d);
+    const dow = fecha.getDay();
+    const dowMapped = dow === 0 ? 6 : dow - 1;
+    if (al.diasClase.includes(dowMapped)) {
+      fechasAGenerar.push(fmt(fecha));
+    }
+  }
+
+  if (fechasAGenerar.length === 0) {
+    toast('No hay fechas para ese mes', 'err'); return;
+  }
+
+  const clasesExistentes = S.clases.filter(c =>
+    c.alumnoId === alumnoId &&
+    c.fecha >= fmt(new Date(y, m, 1)) &&
+    c.fecha <= fmt(new Date(y, m + 1, 0))
+  );
+  const fechasExistentes = new Set(clasesExistentes.map(c => c.fecha));
+  const fechasNuevas = fechasAGenerar.filter(f => !fechasExistentes.has(f));
+
+  const diasConf = al.diasClase.map(i => {
+    const nombres = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+    return nombres[i];
+  }).join(', ');
+
+  const resumen = fechasNuevas.length > 0
+    ? fechasNuevas.map(f => {
+        const d = new Date(f + 'T12:00:00');
+        return `<div style="padding:4px 0;border-bottom:1px solid var(--s3);font-size:13px">
+          📅 ${DIAS_NOMBRE[d.getDay()]} ${d.getDate()}/${d.getMonth()+1} — ${al.horaClase||'09:00'}hs · ${al.canchaClase||'Cancha 1'}
+        </div>`;
+      }).join('')
+    : `<p style="color:var(--t2)">Todas las clases de este mes ya fueron generadas.</p>`;
+
+  openModal(`Generar clases — ${MESES[m]}`, `
+    <div style="font-size:13px;color:var(--t2);margin-bottom:12px">
+      <strong>${al.nombre}</strong> · ${diasConf} · ${al.horaClase||'09:00'}hs
+    </div>
+    ${fechasExistentes.size > 0 ? `<div style="font-size:12px;color:var(--am);margin-bottom:10px">⚠️ Ya hay ${fechasExistentes.size} clase(s) registradas este mes (no se duplican)</div>` : ''}
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--acc)">
+      ${fechasNuevas.length > 0 ? `Se van a crear ${fechasNuevas.length} clase(s):` : ''}
+    </div>
+    <div style="max-height:240px;overflow-y:auto">${resumen}</div>
+  `, fechasNuevas.length > 0 ? async () => {
+    for (const fecha of fechasNuevas) {
+      await DB.add('clases', {
+        titulo: 'Clase — ' + al.nombre,
+        fecha,
+        hora:     al.horaClase  || '09:00',
+        dur:      al.durClase   || 60,
+        cancha:   al.canchaClase|| 'Cancha 1',
+        tipo:     'particular',
+        alumnoId,
+        estado:   'confirmada',
+        notas:    '',
+      });
+    }
+    await loadAll();
+    toast('✅ ' + fechasNuevas.length + ' clase(s) generadas para ' + MESES[m]);
+    closeModal();
+    verAlumno(alumnoId);
+  } : null, fechasNuevas.length > 0 ? '✅ Generar' : null);
+}
+
 
 function _alumnoOpts(selVal) {
   return '<option value="">—</option>' +
@@ -2204,15 +2419,20 @@ function formClase(alumnoId) {
       <option value="cancelada">Cancelada</option>
     </select>
     <label class="flbl">Repetir clase</label>
-    <select class="finp" id="fc-repetir">
-      <option value="0">No repetir</option>
-      <option value="1">1 semana más</option>
-      <option value="2">2 semanas más</option>
-      <option value="3">3 semanas más</option>
-      <option value="4">4 semanas más (1 mes)</option>
-      <option value="8">8 semanas más (2 meses)</option>
-      <option value="12">12 semanas más (3 meses)</option>
-    </select>
+    <div style="display:flex;gap:8px;margin-bottom:4px">
+      <button type="button" id="fc-rep-no"
+        onclick="setRepetir('no')"
+        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--acc);background:var(--acc);color:#fff;font-size:13px;font-weight:600;cursor:pointer">
+        📌 Solo esta vez
+      </button>
+      <button type="button" id="fc-rep-mes"
+        onclick="setRepetir('mes')"
+        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--s5);background:var(--s3);color:var(--t1);font-size:13px;font-weight:600;cursor:pointer">
+        📅 Repetir el mes
+      </button>
+    </div>
+    <div id="fc-rep-info" style="display:none;font-size:12px;color:var(--acc);padding:6px 10px;background:var(--s3);border-radius:8px;margin-bottom:4px"></div>
+    <input type="hidden" id="fc-repetir" value="no">
     <label class="flbl">Notas</label>
     <input class="finp" id="fc-notas" type="text" placeholder="Opcional...">
   `, async () => {
@@ -2232,14 +2452,23 @@ function formClase(alumnoId) {
       notas:     document.getElementById('fc-notas').value.trim(),
     };
     const newId = await DB.add('clases', claseBase);
-    const repetir = parseInt(document.getElementById('fc-repetir').value) || 0;
-    for (let w = 1; w <= repetir; w++) {
-      const d = new Date(fecha + 'T12:00:00');
-      d.setDate(d.getDate() + w * 7);
-      await DB.add('clases', { ...claseBase, fecha: fmt(d) });
+    const repetirMes = document.getElementById('fc-repetir').value === 'mes';
+    let creadas = 1;
+    if (repetirMes) {
+      const fechaBase = new Date(fecha + 'T12:00:00');
+      const y = fechaBase.getFullYear(), m = fechaBase.getMonth();
+      const ultimoDia = new Date(y, m + 1, 0).getDate();
+      const dowBase = fechaBase.getDay();
+      for (let d = 1; d <= ultimoDia; d++) {
+        const f = new Date(y, m, d);
+        if (f.getDay() === dowBase && fmt(f) !== fecha) {
+          await DB.add('clases', { ...claseBase, fecha: fmt(f) });
+          creadas++;
+        }
+      }
     }
     await loadAll(); closeModal();
-    toast(repetir > 0 ? `Clase creada × ${repetir+1} semanas` : 'Clase agregada');
+    toast(repetirMes ? 'Clase creada × ' + creadas + ' veces este mes' : 'Clase agregada');
     rClases(fecha);
     const clNueva = S.clases.find(c => c.id === newId);
     if (clNueva && GCAL.isConnected()) GCAL.syncOne(clNueva).catch(() => {});
