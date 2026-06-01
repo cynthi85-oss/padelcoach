@@ -4086,6 +4086,52 @@ const GCAL = (() => {
     }
   }
 
+  // ── limpiarDuplicados: borra eventos duplicados del mes en GCal ───
+  async function limpiarDuplicados() {
+    try {
+      await ensureToken();
+      if (!dedicatedCalId) await ensureDedicatedCalendar();
+      toast('🧹 Limpiando duplicados...');
+      const calEnc = encodeURIComponent(dedicatedCalId);
+      const allEvents = await fetchExistingEvents();
+
+      // Agrupar por título + fecha + hora
+      const grupos = {};
+      for (const ev of allEvents) {
+        const fecha = (ev.start?.dateTime || ev.start?.date || '').slice(0,10);
+        const hora  = (ev.start?.dateTime || '').slice(11,16);
+        const key   = `${ev.summary}__${fecha}__${hora}`;
+        if (!grupos[key]) grupos[key] = [];
+        grupos[key].push(ev);
+      }
+
+      let borrados = 0;
+      for (const key of Object.keys(grupos)) {
+        const evs = grupos[key];
+        if (evs.length <= 1) continue;
+        // Mantener el primero, borrar el resto
+        const aEliminar = evs.slice(1);
+        for (const ev of aEliminar) {
+          const evId = ev.recurringEventId || ev.id;
+          try {
+            await apiFetch(
+              `https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${evId}`,
+              { method: 'DELETE' }
+            );
+            borrados++;
+          } catch(e2) { /* ignorar 404 */ }
+        }
+      }
+
+      toast(borrados > 0
+        ? `✅ ${borrados} evento(s) duplicado(s) eliminado(s)`
+        : '✅ No había duplicados');
+    } catch(e) {
+      console.error('limpiarDuplicados:', e);
+      toast('Error al limpiar duplicados', 'err');
+    }
+  }
+
   // ── deleteOne: al eliminar una clase en la app ────────────────────
   // ── deleteSerieDelMes: borra todos los eventos GCal del mes con mismo título ──
   async function deleteSerieDelMes(cl, mesStr) {
@@ -4220,6 +4266,9 @@ const GCAL = (() => {
       <button class="btn-sync" id="gcal-sync-btn" onclick="GCAL.syncManual()">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
         Sincronizar ahora
+      </button>
+      <button class="btn-sync" style="background:rgba(255,61,107,0.12);color:#ff3d6b;border-color:rgba(255,61,107,0.3);margin-top:6px" onclick="GCAL.limpiarDuplicados()">
+        🧹 Limpiar duplicados del mes
       </button>`;
   }
 
@@ -4267,6 +4316,7 @@ const GCAL = (() => {
     syncRecurrente,
     actualizarColorClase,
     deleteSerieDelMes,
+    limpiarDuplicados,
     deleteOne,
     importFromGCal: () => syncBidireccional(false),
     syncManual() { setLoading(true); syncBidireccional(true).finally(() => setLoading(false)); },
