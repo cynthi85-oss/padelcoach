@@ -4054,7 +4054,7 @@ const GCAL = (() => {
         start:       { dateTime: fmtLocal(startDt), timeZone: tz },
         end:         { dateTime: fmtLocal(endDt),   timeZone: tz },
         recurrence:  [`RRULE:FREQ=WEEKLY;COUNT=${count}`],
-        colorId:     '2'
+        colorId:     (clBase.tipo||'').toLowerCase().includes('reserva') ? '8' : '2'
       };
       // Borrar TODOS los eventos del mes con el mismo título para evitar duplicados
       const allEvents = await fetchExistingEvents();
