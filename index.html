@@ -1913,9 +1913,9 @@ function rPagos(vista = 'alumnos') {
             ${avatarHtml(al,'sm')}
             <div class="pay-al-info">
               <div class="pay-al-name">${al.nombre}${al.cuota>0?` <span class="cuota-badge">${fmtMoney(al.cuota)}/mes</span>`:''}</div>
-              <div class="pay-al-sub">${tieneDeuda?`<span style="color:var(--rd)">⚠️ ${deudas.length} clase${deudas.length>1?'s':''} sin pagar</span>`:(ultimoPago?`Último pago: ${fmtDisp(ultimoPago.fecha)}`:'Sin pagos registrados')}</div>
+              <div class="pay-al-sub">${tieneDeuda?`<span style="color:var(--rd)">⚠️ ${deudas.length} clase${deudas.length>1?'s':''} sin pagar</span>`:ultimoPago?`Último pago: ${fmtDisp(ultimoPago.fecha)}`:`<span style="color:var(--am)">Sin pagos registrados</span>`}</div>
             </div>
-            <div class="pay-al-estado ${tieneDeuda?'deuda':'ok'}">${tieneDeuda?'DEBE':'AL DÍA'}</div>
+            <div class="pay-al-estado ${tieneDeuda?'deuda':ultimoPago?'ok':'pendiente'}">${tieneDeuda?'DEBE':ultimoPago?'AL DÍA':'PENDIENTE'}</div>
           </div>
           <div class="pay-al-body">
             ${tieneDeuda?`<div class="pay-deuda-section"><div class="pay-sec-lbl">Clases sin pagar</div>${deudaRows}</div>`:''}
