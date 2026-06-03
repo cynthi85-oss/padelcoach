@@ -1881,6 +1881,7 @@ function rPagos(vista = 'alumnos') {
     });
 
     const filas = alumnosFiltrados.map(al => {
+      try {
       const deudas = getClasesDeuda(al.id);
       const pagosAl = S.pagos.filter(p => p.estado==='pagado' && p.alumnoId===al.id)
         .sort((a,b) => b.fecha.localeCompare(a.fecha)).slice(0, 3);
@@ -1919,6 +1920,7 @@ function rPagos(vista = 'alumnos') {
             <button class="pay-reg-btn" onclick="formPago(${al.id})">+ Registrar pago</button>
           </div>
         </div>`;
+      } catch(e) { return `<div class="row"><div class="row-info"><div class="row-name">${al.nombre}</div><div class="row-sub" style="color:var(--rd)">Error: ${e.message}</div></div></div>`; }
     }).join('') || '<p class="empty">Sin alumnos</p>';
  
     contenido = `
