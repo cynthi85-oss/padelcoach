@@ -2465,10 +2465,15 @@ function rNotifs() {
 
   // ── Sección notas ──
   const notasHTML = `
-    <div class="t-sec" style="display:flex;justify-content:space-between;align-items:center;margin-top:0">
-      <span>📝 Notas y recordatorios</span>
-      <button onclick="formNota()" style="background:var(--ac);color:#000;border:none;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">+ Nueva</button>
-    </div>
+    <button onclick="formNota()"
+      style="display:flex;align-items:center;justify-content:center;gap:10px;
+             width:100%;padding:16px;margin-bottom:12px;
+             background:var(--ac);color:#000;border:none;
+             border-radius:16px;font-size:16px;font-weight:800;
+             cursor:pointer;box-shadow:0 4px 20px var(--ac-glow);
+             letter-spacing:.3px">
+      ✏️ Nueva nota o recordatorio
+    </button>
     <div class="card-flush" id="notas-list-tab">${renderNotasList()}</div>
     <div class="t-sec" style="margin-top:16px">🔔 Alertas</div>
   `;
