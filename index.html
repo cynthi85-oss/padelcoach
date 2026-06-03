@@ -1229,8 +1229,9 @@ function rInicio() {
       <span>📝 Notas y recordatorios</span>
       <button onclick="formNota()" style="background:var(--acc);color:#000;border:none;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">+ Nueva</button>
     </div>
-    <div class="card-flush" id="notas-list">${renderNotasList()}</div>
+    <div class="card-flush" id="notas-list"></div>
   `;
+  document.getElementById('notas-list').innerHTML = renderNotasList();
 }
  
 /* ═══════════════════════════════════════════════════════════════════
