@@ -1315,25 +1315,24 @@ function toggleVozNota() {
   }
   const rec = new SpeechRecognition();
   rec.lang = 'es-AR';
-  rec.continuous = true;
+  rec.continuous = false;
   rec.interimResults = true;
   window._vozRecognition = rec;
   window._vozActive = true;
-  let textoBase = textarea.value;
+  const textoBase = textarea.value;
   btn.style.background   = 'rgba(255,61,107,0.3)';
   btn.style.borderColor  = '#ff3d6b';
   btn.innerHTML          = '⏹️';
   status.textContent     = '🎙️ Escuchando...';
+  let finalTranscript = '';
   rec.onresult = e => {
     let interim = '';
-    let final   = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) final += e.results[i][0].transcript;
-      else interim += e.results[i][0].transcript;
+    for (let i = 0; i < e.results.length; i++) {
+      if (e.results[i].isFinal) finalTranscript = e.results[i][0].transcript;
+      else interim = e.results[i][0].transcript;
     }
-    if (final) textoBase += (textoBase ? ' ' : '') + final;
-    textarea.value  = textoBase + (interim ? ' ' + interim : '');
-    status.textContent = interim ? '🎙️ ' + interim : '🎙️ Escuchando...';
+    textarea.value = (textoBase ? textoBase + ' ' : '') + (finalTranscript || interim);
+    status.textContent = '🎙️ ' + (interim || finalTranscript || 'Escuchando...');
   };
   rec.onerror = e => {
     toast('Error de micrófono: ' + e.error, 'err');
