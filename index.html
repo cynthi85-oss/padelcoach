@@ -1378,6 +1378,20 @@ function checkNotasHoy() {
 }
 
 
+async function confirmarAsistencia(claseId, resultado) {
+  const cl = S.clases.find(c => c.id === claseId);
+  if (!cl) return;
+  await DB.put('clases', {
+    ...cl,
+    asistencia_confirmada: true,
+    asistio: resultado === 'si',
+    estado: resultado === 'no' ? 'ausente' : cl.estado,
+  });
+  await loadAll();
+  rNotifs();
+  toast(resultado === 'si' ? '✅ Asistencia confirmada' : '❌ Marcado como ausente');
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    ALUMNOS
 ═══════════════════════════════════════════════════════════════════ */
@@ -2512,6 +2526,47 @@ function rNotifs() {
     notifs.push({ tipo:'blue', icon:'📅', titulo:`Clase mañana — ${cl.hora}`, sub:`${cl.titulo} · ${cl.cancha} · ${cl.dur}min` });
   });
 
+  // ── NUEVA: Asistencia sin confirmar (clases de ayer) ──
+  const ayer = fmt(new Date(Date.now()-86400000));
+  S.clases.filter(c => c.fecha===ayer && c.estado!=='cancelada' && c.estado!=='cambiada' && !c.asistencia_confirmada).forEach(cl => {
+    const al = cl.alumnoId ? S.alumnos.find(a=>a.id===cl.alumnoId) : null;
+    const nombre = al ? al.nombre : cl.titulo;
+    notifs.push({
+      tipo:'amber', icon:'✋',
+      titulo:`¿Vino a clase ayer?`,
+      sub:`${cl.titulo} · ${cl.hora}hs · ${fmtDisp(ayer)}`,
+      al,
+      accion: `confirmarAsistencia(${cl.id},'si')`,
+      accionNeg: `confirmarAsistencia(${cl.id},'no')`,
+      labelPos: '✅ Sí vino',
+      labelNeg: '❌ No vino',
+    });
+  });
+
+  // ── NUEVA: Cobro mañana ──
+  S.pagos.filter(p => p.estado==='pendiente' && p.fecha===man).forEach(p => {
+    const al = S.alumnos.find(a=>a.id===p.alumnoId);
+    if (al) notifs.push({
+      tipo:'amber', icon:'💳',
+      titulo:`Cobro mañana`,
+      sub:`${al.nombre} · ${fmtMoney(p.monto)} · vence ${fmtDisp(man)}`,
+      al,
+    });
+  });
+
+  // ── NUEVA: Cambios de clase pendientes ──
+  S.clases.filter(c => c.estado==='cambiada' && c.fecha_alt==='pendiente').forEach(cl => {
+    const al = cl.alumnoId ? S.alumnos.find(a=>a.id===cl.alumnoId) : null;
+    notifs.push({
+      tipo:'red', icon:'🔄',
+      titulo:`Cambio de clase sin fecha`,
+      sub:`${cl.titulo} · ${fmtDisp(cl.fecha)}${cl.motivo_cambio ? ' · ' + cl.motivo_cambio : ''} — necesita nueva fecha`,
+      al,
+      accion: `closeModal();formClaseEdit(${cl.id})`,
+      labelPos: '📅 Asignar fecha',
+    });
+  });
+
   // Card de permiso de notificaciones push
   let pushCard = '';
   const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
@@ -2534,12 +2589,18 @@ function rNotifs() {
     const tel = n.al ? (n.al.tel||'').replace(/\D/g,'') : '';
     const waMsg = n.al ? encodeURIComponent(`Hola ${n.al.nombre}! Te recuerdo que tenés un pago pendiente. Saludos!`) : '';
     const waBut = tel ? `<a class="notif-wa" href="https://wa.me/${normalizarTelAR(tel)}?text=${waMsg}" target="_blank" rel="noopener">📲 Recordatorio WA</a>` : '';
+    const botonesAccion = (n.accion || n.accionNeg) ? `
+      <div style="display:flex;gap:8px;margin-top:8px">
+        ${n.accion ? `<button onclick="${n.accion}" style="flex:1;padding:8px;background:rgba(0,255,179,0.15);color:var(--g);border:1px solid rgba(0,255,179,0.3);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer">${n.labelPos||'✅ Confirmar'}</button>` : ''}
+        ${n.accionNeg ? `<button onclick="${n.accionNeg}" style="flex:1;padding:8px;background:rgba(255,61,107,0.12);color:var(--rd);border:1px solid rgba(255,61,107,0.2);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer">${n.labelNeg||'❌ No'}</button>` : ''}
+      </div>` : '';
     return `<div class="notif-item">
       <div class="notif-icon ${n.tipo}">${n.icon}</div>
       <div class="notif-body">
         <div class="notif-title">${n.titulo}</div>
         <div class="notif-sub">${n.sub}</div>
         ${waBut}
+        ${botonesAccion}
       </div>
     </div>`;
   }).join('') : '<p class="empty" style="padding:28px 0">Sin alertas pendientes 🎉</p>';
