@@ -1334,9 +1334,11 @@ function animateCountUps() {
    NOTAS Y RECORDATORIOS
 ═══════════════════════════════════════════════════════════════════ */
 function renderNotasList() {
-  if (!S.notas || !S.notas.length) return '<p class="empty" style="padding:14px">Sin notas. Tocá + Nueva para agregar.</p>';
+  // Solo notas de texto — las de progreso técnico (habs) viven en el perfil del alumno
+  const notasTexto = (S.notas || []).filter(n => n.texto);
+  if (!notasTexto.length) return '<p class="empty" style="padding:14px">Sin notas. Tocá + Nueva para agregar.</p>';
   const hoy = fmt(new Date());
-  return S.notas
+  return notasTexto
     .sort((a,b) => {
       // Primero las con fecha (más próximas), luego las libres
       if (a.fecha && b.fecha) return a.fecha.localeCompare(b.fecha);
@@ -1878,6 +1880,7 @@ async function verClase(id) {
     <div class="inf"><span class="inf-lbl">Tipo</span><span class="inf-val">${cl.tipo}</span></div>
     ${alumnos.length ? `<div class="inf"><span class="inf-lbl">Alumno${alumnos.length>1?'s':''}</span><span class="inf-val">${alumnos.map(a=>a.nombre).join(', ')}</span></div>` : ''}
     <div class="inf"><span class="inf-lbl">Estado</span><span class="inf-val">${BADGE[cl.estado]||cl.estado}</span></div>
+    ${cl.pagoModo?`<div class="inf"><span class="inf-lbl">Pago</span><span class="inf-val">${cl.pagoModo==='mensual'?'📅 Mensual (cuota)':'💵 Por clase (diario)'}</span></div>`:''}
     ${cl.notas?`<div class="inf"><span class="inf-lbl">Notas</span><span class="inf-val">${cl.notas}</span></div>`:''}
     <button class="btn-outline mt-8" class="btn-warning" style="margin-top:0" onclick="closeModal();modalCambioClase(${id})">🔄 Cambiar / Cancelar clase</button>
     <div class="btn-row mt-8">
@@ -1981,6 +1984,32 @@ function getClasesDeuda(alumnoId) {
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
 }
  
+// ── Modalidad de pago: 'diario' (por clase) o 'mensual' (cuota) ────────────
+// ¿El alumno ya cumplió el pago de esta clase según su modalidad?
+function pagoClaseSatisfecho(cl, alumnoId) {
+  if ((cl.pagoModo || 'diario') === 'mensual') {
+    // Mensual: alcanza con un pago registrado en el mes de la clase,
+    // o un pago vinculado a una clase de ese mes (cuota vieja pagada después)
+    const mes = cl.fecha.slice(0, 7);
+    const clasesDelMes = new Set(S.clases.filter(c => c.fecha.startsWith(mes) &&
+      (c.alumnoId === alumnoId || (c.alumnosIds||[]).includes(alumnoId))).map(c => c.id));
+    return S.pagos.some(p => p.alumnoId === alumnoId && p.estado === 'pagado' &&
+      ((p.fecha||'').startsWith(mes) || clasesDelMes.has(p.claseId)));
+  }
+  // Diario: pago vinculado a la clase, o un pago suelto del mismo día
+  return S.pagos.some(p => p.alumnoId === alumnoId && p.estado === 'pagado' &&
+    (p.claseId === cl.id || (!p.claseId && p.fecha === cl.fecha)));
+}
+
+// Alumnos de una clase que todavía deben el pago según la modalidad.
+// Solo aplica a clases con modalidad definida (las viejas no molestan).
+function alumnosConPagoPendiente(cl) {
+  if (!cl.pagoModo) return [];
+  if (['cancelada','cambiada','ausente'].includes(cl.estado || '')) return [];
+  const ids = cl.alumnosIds?.length ? cl.alumnosIds : (cl.alumnoId ? [cl.alumnoId] : []);
+  return ids.filter(id => S.alumnos.some(a => a.id === id) && !pagoClaseSatisfecho(cl, id));
+}
+
 // Guardar registro de no-pago por clase
 function registrarNoPago(alumnoId, claseId, claseTitle, fecha) {
   if (!window._clasesNoPago) window._clasesNoPago = JSON.parse(localStorage.getItem('clases_nopago') || '[]');
@@ -2265,6 +2294,13 @@ async function formClaseEdit(id) {
     <select class="finp" id="fc-estado">
       ${['confirmada','pendiente','cancelada'].map(s=>`<option value="${s}" ${cl.estado===s?'selected':''}>${s}</option>`).join('')}
     </select>
+    <label class="flbl">Modalidad de pago</label>
+    <div style="display:flex;gap:8px;margin-bottom:4px">
+      <button type="button" id="fc-pm-diario" class="rep-btn ${(cl.pagoModo||'diario')==='diario'?'activo':''}" onclick="setPagoModo('diario')">💵 Por clase</button>
+      <button type="button" id="fc-pm-mensual" class="rep-btn ${cl.pagoModo==='mensual'?'activo':''}" onclick="setPagoModo('mensual')">📅 Mensual</button>
+    </div>
+    <div style="font-size:11.5px;color:var(--t1);margin-bottom:8px" id="fc-pm-info">${cl.pagoModo==='mensual'?'Te pregunta por la cuota del mes y te insiste cada día hasta que se registre.':'Al terminar cada clase te pregunta si pagó, y te insiste cada día hasta registrar el pago.'}</div>
+    <input type="hidden" id="fc-pagomodo" value="${cl.pagoModo||'diario'}">
     <label class="flbl">Notas</label>
     <input class="finp" id="fc-notas" type="text" value="${cl.notas||''}">
   `, async () => {
@@ -2281,6 +2317,7 @@ async function formClaseEdit(id) {
       alumnoId:  alumnosIds[0] || null,
       alumnosIds,
       estado:    document.getElementById('fc-estado').value,
+      pagoModo:  document.getElementById('fc-pagomodo')?.value || cl.pagoModo || 'diario',
       notas:     document.getElementById('fc-notas').value.trim(),
     };
     await DB.put('clases', claseEditada);
@@ -2808,6 +2845,46 @@ function rNotifs() {
     });
   });
 
+  // ── Pagos pendientes según modalidad (diario / mensual) ──
+  // Insisten todos los días hasta que se registre el pago
+  const hace30 = fmt(new Date(Date.now() - 30 * 86400000));
+  const cuotasVistas = new Set();
+  S.clases
+    .filter(c => c.pagoModo && c.fecha < hoy && c.fecha >= hace30)
+    .sort((a,b) => b.fecha.localeCompare(a.fecha))
+    .forEach(cl => {
+      // las de ayer sin asistencia confirmada ya tienen su alerta propia arriba
+      if (cl.fecha === ayer && !cl.asistencia_confirmada) return;
+      alumnosConPagoPendiente(cl).forEach(alId => {
+        const al = S.alumnos.find(a => a.id === alId);
+        if (!al) return;
+        if (cl.pagoModo === 'mensual') {
+          const k = alId + '_' + cl.fecha.slice(0,7);
+          if (cuotasVistas.has(k)) return; // una alerta por alumno y mes
+          cuotasVistas.add(k);
+          notifs.push({
+            tipo:'amber', icon:'📅',
+            titulo:`Cuota mensual pendiente — ${al.nombre.split(' ')[0]}`,
+            sub:`${fmtMes(cl.fecha.slice(0,7))} · sin pago registrado en el mes`,
+            al,
+            waMsg:`Hola ${al.nombre.split(' ')[0]}! Te recuerdo que está pendiente la cuota de ${fmtMes(cl.fecha.slice(0,7))}. Cualquier cosa avisame! 🎾`,
+            accion:`alertaPagoRapido(${al.id},${cl.id})`,
+            labelPos:'💰 Registrar pago',
+          });
+        } else {
+          notifs.push({
+            tipo:'amber', icon:'💵',
+            titulo:`Clase sin pagar — ${al.nombre.split(' ')[0]}`,
+            sub:`${cl.titulo} · ${fmtDisp(cl.fecha)} ${cl.hora}hs`,
+            al,
+            waMsg:`Hola ${al.nombre.split(' ')[0]}! Te recuerdo el pago de la clase "${cl.titulo}" del ${fmtDisp(cl.fecha)}. Gracias! 🎾`,
+            accion:`abrirSaldarDeuda(${al.id},${cl.id},${jsArg(cl.titulo)})`,
+            labelPos:'💰 Cobrar',
+          });
+        }
+      });
+    });
+
   // Card de permiso de notificaciones push
   let pushCard = '';
   const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
@@ -2968,6 +3045,21 @@ function formAlumno(id) {
     rAlumnos();
   });
 }
+
+function setPagoModo(modo) {
+  const btnD = document.getElementById('fc-pm-diario');
+  const btnM = document.getElementById('fc-pm-mensual');
+  const hidden = document.getElementById('fc-pagomodo');
+  const info = document.getElementById('fc-pm-info');
+  if (!btnD || !btnM || !hidden) return;
+  hidden.value = modo;
+  btnD.classList.toggle('activo', modo === 'diario');
+  btnM.classList.toggle('activo', modo === 'mensual');
+  if (info) info.textContent = modo === 'mensual'
+    ? 'Te pregunta por la cuota del mes y te insiste cada día hasta que se registre.'
+    : 'Al terminar cada clase te pregunta si pagó, y te insiste cada día hasta registrar el pago.';
+}
+window.setPagoModo = setPagoModo;
 
 function setRepetir(modo) {
   const btnNo  = document.getElementById('fc-rep-no');
@@ -3175,6 +3267,13 @@ function formClase(alumnoId) {
       <option value="pendiente">Pendiente</option>
       <option value="cancelada">Cancelada</option>
     </select>
+    <label class="flbl">Modalidad de pago</label>
+    <div style="display:flex;gap:8px;margin-bottom:4px">
+      <button type="button" id="fc-pm-diario" class="rep-btn activo" onclick="setPagoModo('diario')">💵 Por clase</button>
+      <button type="button" id="fc-pm-mensual" class="rep-btn" onclick="setPagoModo('mensual')">📅 Mensual</button>
+    </div>
+    <div style="font-size:11.5px;color:var(--t1);margin-bottom:8px" id="fc-pm-info">Al terminar cada clase te pregunta si pagó, y te insiste cada día hasta registrar el pago.</div>
+    <input type="hidden" id="fc-pagomodo" value="diario">
     <label class="flbl">Repetir clase</label>
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <button type="button" id="fc-rep-no" class="rep-btn activo" onclick="setRepetir('no')">
@@ -3202,6 +3301,7 @@ function formClase(alumnoId) {
       alumnoId:  alumnosIds[0] || null,
       alumnosIds,
       estado:    document.getElementById('fc-estado').value,
+      pagoModo:  document.getElementById('fc-pagomodo')?.value || 'diario',
       notas:     document.getElementById('fc-notas').value.trim(),
     };
     const newId = await DB.add('clases', claseBase);
@@ -5067,9 +5167,18 @@ window.PUSH = PUSH;
   const STORAGE_KEY = 'pay_popup_shown';
   let currentClase = null;
   let selections = {}; // alumnoId (o 'grupal') → 'efectivo' | 'transferencia' | 'nopago'
- 
+
   function getShown() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); } catch { return {}; } }
-  function markShown(id) { const s=getShown(); s[id]=Date.now(); localStorage.setItem(STORAGE_KEY,JSON.stringify(s)); }
+  function markShown(id) {
+    const s = getShown();
+    s[id] = Date.now();
+    // Limpiar marcas de más de 7 días (las claves incluyen el día, no se reusan)
+    const limite = Date.now() - 7 * 86400000;
+    Object.keys(s).forEach(k => { if (s[k] < limite) delete s[k]; });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  }
+  // Clave por día: permite volver a preguntar mañana si el pago sigue pendiente
+  function ppKey(cl) { return cl.id + '_' + cl.fecha + '_' + fmt(new Date()); }
  
   function buildAlumnoRow(key, nombre) {
     selections[key] = null;
@@ -5092,24 +5201,41 @@ window.PUSH = PUSH;
     </div>`;
   }
  
-  function showPopup(clase) {
+  function showPopup(clase, soloPendientes = false) {
     currentClase = clase;
     selections = {};
-    document.getElementById('pp-title').textContent = `¿Cómo pagaron "${clase.titulo}"?`;
-    document.getElementById('pp-sub').textContent = `Clase finalizada · ${clase.hora} · ${clase.dur} min`;
- 
+    const esMensual = clase.pagoModo === 'mensual';
+    const mesNom = esMensual ? fmtMes(clase.fecha.slice(0,7)) : '';
+    if (soloPendientes) {
+      document.getElementById('pp-title').textContent = esMensual
+        ? `¿Ya pagaron la cuota de ${mesNom}?`
+        : `Pago pendiente: "${clase.titulo}"`;
+      document.getElementById('pp-sub').textContent = esMensual
+        ? `${clase.titulo} · pago mensual sin registrar`
+        : `Clase del ${fmtDisp(clase.fecha)} · ${clase.hora} · sin pago registrado`;
+    } else {
+      document.getElementById('pp-title').textContent = esMensual
+        ? `¿Pagó la cuota de ${mesNom}?`
+        : `¿Cómo pagaron "${clase.titulo}"?`;
+      document.getElementById('pp-sub').textContent = `Clase finalizada · ${clase.hora} · ${clase.dur} min${esMensual ? ' · pago mensual' : ''}`;
+    }
+
     let rows = '';
-    const alumnosIds = clase.alumnosIds?.length ? clase.alumnosIds : (clase.alumnoId ? [clase.alumnoId] : []);
+    let alumnosIds = clase.alumnosIds?.length ? clase.alumnosIds : (clase.alumnoId ? [clase.alumnoId] : []);
+    // En la re-pregunta diaria solo mostrar a los que siguen debiendo
+    if (soloPendientes) alumnosIds = alumnosConPagoPendiente(clase);
     if (alumnosIds.length) {
       rows = alumnosIds.map(id => {
         const al = S.alumnos.find(a => a.id === id);
         return buildAlumnoRow(id, al ? al.nombre : 'Alumno');
       }).join('');
-    } else if (S.alumnos.length > 0) {
+    } else if (S.alumnos.length > 0 && !soloPendientes) {
       // Si una clase grupal vieja no tiene alumnos asignados, mantener el comportamiento anterior.
       rows = S.alumnos.map(a => buildAlumnoRow(a.id, a.nombre)).join('');
-    } else {
+    } else if (!soloPendientes) {
       rows = buildAlumnoRow('grupal', 'Grupo');
+    } else {
+      return; // nada pendiente, no mostrar
     }
     document.getElementById('pp-alumnos').innerHTML = rows;
     overlay.classList.add('on');
@@ -5136,6 +5262,7 @@ window.PUSH = PUSH;
     async confirm() {
       const hoy = fmt(new Date());
       let guardados = 0;
+      const esMensual = currentClase?.pagoModo === 'mensual';
       for (const [key, metodo] of Object.entries(selections)) {
         if (!metodo) continue;
         const alumnoId = key === 'grupal' ? null : parseInt(key);
@@ -5146,25 +5273,34 @@ window.PUSH = PUSH;
           const al = S.alumnos.find(a => a.id === alumnoId);
           const metodoMap = { efectivo:'Efectivo', transferencia:'Transferencia', mercadopago:'MercadoPago', cuota:'Cuota' };
           const metodoFinal = metodoMap[metodo] || metodo;
+          const monto = (esMensual || metodo === 'cuota') ? (parseFloat(al?.cuota) || 0) : 0;
           await DB.add('pagos', {
             alumnoId,
-            monto: metodo === 'cuota' ? (parseFloat(al?.cuota) || 0) : 0,
+            claseId: currentClase.id,
+            monto,
             fecha: hoy,
             metodo: metodoFinal,
-            estado: 'pagado'
+            estado: 'pagado',
+            notas: esMensual ? `Cuota ${fmtMes(currentClase.fecha.slice(0,7))}` : `Clase: ${currentClase.titulo} · ${fmtDisp(currentClase.fecha)}`
           });
-          enviarConfirmacionPago(alumnoId, metodoFinal, 0, currentClase?.titulo || '');
+          // Quitar de la lista de no-pago si estaba (sin re-render ni toast)
+          if (!window._clasesNoPago) window._clasesNoPago = JSON.parse(localStorage.getItem('clases_nopago') || '[]');
+          window._clasesNoPago = window._clasesNoPago.filter(r => !(r.alumnoId === alumnoId && r.claseId === currentClase.id));
+          localStorage.setItem('clases_nopago', JSON.stringify(window._clasesNoPago));
+          enviarConfirmacionPago(alumnoId, metodoFinal, monto, esMensual ? `Cuota ${fmtMes(currentClase.fecha.slice(0,7))}` : (currentClase?.titulo || ''));
           guardados++;
         }
       }
       await loadAll();
       overlay.classList.remove('on');
-      if (currentClase) markShown(currentClase.id + '_' + currentClase.fecha);
+      if (currentClase) markShown(ppKey(currentClase));
       toast(guardados > 0 ? `✓ ${guardados} pago${guardados>1?'s':''} registrado${guardados>1?'s':''}` : 'Sin pagos registrados');
+      if (S.tab === 'notifs') rNotifs();
+      if (S.tab === 'pagos') rPagos();
     },
     skip() {
       overlay.classList.remove('on');
-      if (currentClase) markShown(currentClase.id + '_' + currentClase.fecha);
+      if (currentClase) markShown(ppKey(currentClase));
     }
   };
  
@@ -5173,22 +5309,39 @@ window.PUSH = PUSH;
     const now = new Date();
     const hoy = fmt(now);
     const shown = getShown();
+    if (overlay.classList.contains('on')) return; // ya hay un popup abierto
+
+    // ── 1. Clase que acaba de terminar (hoy, hace 0-10 min) ──
     const clasesHoy = S.clases.filter(c => c.fecha === hoy && c.estado !== 'cancelada');
- 
     for (const cl of clasesHoy) {
-      const key = cl.id + '_' + cl.fecha;
-      if (shown[key]) continue; // ya se mostró hoy
- 
+      if (shown[ppKey(cl)] || shown[cl.id + '_' + cl.fecha]) continue; // ya se mostró hoy (clave nueva o vieja)
+      if (!cl.hora) continue;
+
       const [h, m] = cl.hora.split(':').map(Number);
       const inicio = new Date(now); inicio.setHours(h, m, 0, 0);
       const fin = new Date(inicio.getTime() + cl.dur * 60000);
       const diffMs = now - fin;
- 
+
       // Mostrar si la clase terminó hace entre 0 y 10 minutos
       if (diffMs >= 0 && diffMs <= 10 * 60 * 1000) {
         showPopup(cl);
-        break; // mostrar de a uno
+        return; // mostrar de a uno
       }
+    }
+
+    // ── 2. Re-pregunta diaria: pagos pendientes de clases pasadas ──
+    // Una vez por día, insiste con el primer pago sin completar (diario o mensual)
+    const reaskKey = 'reask_' + hoy;
+    if (shown[reaskKey]) return;
+    const hace30 = fmt(new Date(Date.now() - 30 * 86400000));
+    const pendiente = S.clases
+      .filter(c => c.pagoModo && c.fecha < hoy && c.fecha >= hace30)
+      .sort((a, b) => b.fecha.localeCompare(a.fecha))
+      .find(c => alumnosConPagoPendiente(c).length > 0);
+    if (pendiente) {
+      showPopup(pendiente, true);
+      markShown(reaskKey);
+      markShown(ppKey(pendiente));
     }
   }
  
