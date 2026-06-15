@@ -1538,7 +1538,15 @@ async function confirmarAsistencia(claseId, resultado) {
    ALUMNOS
 ═══════════════════════════════════════════════════════════════════ */
 function rAlumnos(q='') {
-  const filtered = q ? S.alumnos.filter(a=>a.nombre.toLowerCase().includes(q.toLowerCase())) : S.alumnos;
+  const mesActual = fmt(new Date()).slice(0,7);
+  const tienePagoMes = id => S.pagos.some(p => p.alumnoId===id && p.fecha?.slice(0,7)===mesActual && p.estado==='pagado');
+  const filtered = (q ? S.alumnos.filter(a=>a.nombre.toLowerCase().includes(q.toLowerCase())) : S.alumnos)
+    .slice().sort((a,b) => {
+      const pa = tienePagoMes(a.id), pb = tienePagoMes(b.id);
+      if (!pa && pb) return -1; // pendiente primero
+      if (pa && !pb) return 1;
+      return a.nombre.localeCompare(b.nombre);
+    });
   const rows = filtered.map(al => {
     const p = S.pagos.filter(x=>x.alumnoId===al.id).sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
     const est = p ? p.estado : null;
@@ -1548,7 +1556,7 @@ function rAlumnos(q='') {
         <div class="row-name">${al.nombre}</div>
         <div class="row-sub"><span class="lvl-p ${NIVEL_CLS[al.nivel]}">${NIVELES[al.nivel]}</span> · ${al.freq} clase${al.freq>1?'s':''}/sem</div>
       </div>
-      ${est ? (BADGE[est]||'') : '<span class="badge br">pagos pendientes</span>'}
+      ${tienePagoMes(al.id) ? '<span class="badge bg">al día</span>' : '<span class="badge br">pagos pendientes</span>'}
     </div>`;
   }).join('') || '<p class="empty">Sin resultados</p>';
  
@@ -2062,15 +2070,15 @@ function rPagos(vista = 'alumnos') {
 
   if (vista === 'alumnos') {
     // Vista por alumno: todos los alumnos con su situación de pago
+    const mesP = hoy.slice(0,7);
+    const tienePagoMesP = id => S.pagos.some(p => p.alumnoId===id && p.fecha?.slice(0,7)===mesP && p.estado==='pagado');
     const alumnosFiltrados = (qPagos
       ? S.alumnos.filter(al => al.nombre.toLowerCase().includes(qPagos))
       : S.alumnos
-    ).sort((a,b) => {
-      // Primero los que deben, luego al día, luego sin pagos
-      const da = getClasesDeuda(a.id).length, db = getClasesDeuda(b.id).length;
-      if (da && !db) return -1;
-      if (!da && db) return 1;
-      if (da && db) return db - da;
+    ).slice().sort((a,b) => {
+      const pa = tienePagoMesP(a.id), pb = tienePagoMesP(b.id);
+      if (!pa && pb) return -1;
+      if (pa && !pb) return 1;
       return a.nombre.localeCompare(b.nombre);
     });
 
@@ -2106,7 +2114,7 @@ function rPagos(vista = 'alumnos') {
               <div class="pay-al-name">${al.nombre}${al.cuota>0?` <span class="cuota-badge">${fmtMoney(al.cuota)}/mes</span>`:''}</div>
               <div class="pay-al-sub">${tieneDeuda?`<span style="color:var(--rd)">⚠️ ${deudas.length} clase${deudas.length>1?'s':''} sin pagar</span>`:ultimoPago?`Último pago: ${fmtDisp(ultimoPago.fecha)}`:`<span style="color:var(--am)">Sin pagos registrados</span>`}</div>
             </div>
-            ${tieneDeuda ? '<span class="badge br">pagos pendientes</span>' : ultimoPago ? '<span class="badge bg">al día</span>' : '<span class="badge ba">sin pagos</span>'}
+            ${tienePagoMesP(al.id) ? '<span class="badge bg">al día</span>' : '<span class="badge br">pagos pendientes</span>'}
           </div>
           <div class="pay-al-body">
             ${tieneDeuda?`<div class="pay-deuda-section"><div class="pay-sec-lbl">Clases sin pagar</div>${deudaRows}</div>`:''}
