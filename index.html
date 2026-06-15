@@ -1399,6 +1399,33 @@ function formNota() {
   }, '💾 Guardar');
 }
 
+function setModalidadPago(modo) {
+  const btnM = document.getElementById('fc-pago-mensual');
+  const btnD = document.getElementById('fc-pago-dia');
+  const inp  = document.getElementById('fc-modalidad-pago');
+  if (!btnM || !btnD || !inp) return;
+  inp.value = modo;
+  if (modo === 'mensual') {
+    btnM.style.background  = 'rgba(0,255,179,0.85)';
+    btnM.style.borderColor = 'var(--g)';
+    btnM.style.color       = '#000';
+    btnM.style.fontWeight  = '700';
+    btnD.style.background  = 'var(--s3)';
+    btnD.style.borderColor = 'var(--s5)';
+    btnD.style.color       = 'var(--t2)';
+    btnD.style.fontWeight  = '600';
+  } else {
+    btnD.style.background  = 'rgba(255,204,0,0.85)';
+    btnD.style.borderColor = '#ffcc00';
+    btnD.style.color       = '#000';
+    btnD.style.fontWeight  = '700';
+    btnM.style.background  = 'var(--s3)';
+    btnM.style.borderColor = 'var(--s5)';
+    btnM.style.color       = 'var(--t2)';
+    btnM.style.fontWeight  = '600';
+  }
+}
+
 function toggleVozNota() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
@@ -1481,6 +1508,50 @@ function checkNotasHoy() {
   }
 }
 
+
+async function registrarPagoDiario(claseId) {
+  const cl = S.clases.find(c => c.id === claseId);
+  if (!cl) return;
+  const al = cl.alumnoId ? S.alumnos.find(a=>a.id===cl.alumnoId) : null;
+  const nombre = al ? al.nombre : cl.titulo;
+  openModal(`💵 Pago por clase — ${nombre}`, `
+    <div style="font-size:13px;color:var(--t2);margin-bottom:14px">
+      <strong>${cl.titulo}</strong> · ${fmtDisp(cl.fecha)} · ${cl.hora}hs
+    </div>
+    <label class="flbl">Monto *</label>
+    <input class="finp" id="rpd-monto" type="number" placeholder="Ej: 5000" min="0">
+    <label class="flbl">Método</label>
+    <select class="finp" id="rpd-metodo">
+      <option value="efectivo">Efectivo</option>
+      <option value="transferencia">Transferencia</option>
+      <option value="mercadopago">Mercado Pago</option>
+    </select>
+  `, async () => {
+    const monto = parseFloat(document.getElementById('rpd-monto').value);
+    if (!monto) { toast('Ingresá el monto', 'err'); return; }
+    const metodo = document.getElementById('rpd-metodo').value;
+    await DB.add('pagos', {
+      alumnoId: cl.alumnoId,
+      claseId,
+      monto,
+      metodo,
+      fecha: fmt(new Date()),
+      estado: 'pagado',
+      notas: `Pago por clase del ${fmtDisp(cl.fecha)}`,
+    });
+    await DB.put('clases', { ...cl, pago_diario_confirmado: true, asistencia_confirmada: true });
+    await loadAll(); closeModal(); rNotifs();
+    toast(`✅ Pago de ${nombre} registrado`);
+  }, '✅ Confirmar pago');
+}
+
+async function marcarPagoDiarioPendiente(claseId) {
+  const cl = S.clases.find(c => c.id === claseId);
+  if (!cl) return;
+  await DB.put('clases', { ...cl, pago_diario_confirmado: false, pago_diario_pendiente: true });
+  await loadAll(); rNotifs();
+  toast('⏳ Marcado como pendiente');
+}
 
 async function alertaPagoRapido(alumnoId, claseId) {
   const al = S.alumnos.find(a => a.id === alumnoId);
@@ -2294,6 +2365,16 @@ async function formClaseEdit(id) {
     <select class="finp" id="fc-tipo" onchange="_onTipoClaseChange()">
       ${['particular','grupal','reserva'].map(t=>`<option value="${t}" ${cl.tipo===t?'selected':''}>${t}</option>`).join('')}
     </select>
+    <label class="flbl">Modalidad de pago</label>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button type="button" id="fc-pago-mensual" class="rep-btn activo" onclick="setModalidadPago('mensual')" style="background:rgba(0,255,179,0.8);border-color:var(--g);color:#000">
+        📅 Mensual
+      </button>
+      <button type="button" id="fc-pago-dia" class="rep-btn" onclick="setModalidadPago('dia')">
+        💵 Por día
+      </button>
+    </div>
+    <input type="hidden" id="fc-modalidad-pago" value="${cl.modalidad_pago||'mensual'}">
     <label class="flbl">Alumnos (hasta 4)</label>
     <div style="margin-bottom:6px"><select class="finp" id="fc-a0" style="margin:0">${_alumnoOpts(ids[0])}</select></div>
     ${_alumnoSlot(1,ids[1]||null,cl.tipo==='grupal'||!!ids[1])}${_alumnoSlot(2,ids[2]||null,cl.tipo==='grupal'||!!ids[2])}${_alumnoSlot(3,ids[3]||null,cl.tipo==='grupal'||!!ids[3])}
@@ -2829,6 +2910,28 @@ function rNotifs() {
     });
   });
 
+  // ── Pago diario: clases de ayer con modalidad por día sin pago ──
+  S.clases.filter(c =>
+    c.fecha === ayer &&
+    c.estado !== 'cancelada' &&
+    c.estado !== 'cambiada' &&
+    (c.modalidad_pago === 'dia' || c.pagoModo === 'diario') &&
+    !c.pago_diario_confirmado
+  ).forEach(cl => {
+    const al = cl.alumnoId ? S.alumnos.find(a=>a.id===cl.alumnoId) : null;
+    const nombre = al ? al.nombre : cl.titulo;
+    notifs.push({
+      tipo:'amber', icon:'💵',
+      titulo:`Pago por clase — ${nombre}`,
+      sub:`${cl.titulo} · ${cl.hora}hs · ${fmtDisp(ayer)} · Pago al finalizar la clase`,
+      al,
+      accion: `registrarPagoDiario(${cl.id})`,
+      accionNeg: `marcarPagoDiarioPendiente(${cl.id})`,
+      labelPos: '💰 Pagó',
+      labelNeg: '⏳ Pendiente',
+    });
+  });
+
   // ── NUEVA: Cobro mañana ──
   S.pagos.filter(p => p.estado==='pendiente' && p.fecha===man).forEach(p => {
     const al = S.alumnos.find(a=>a.id===p.alumnoId);
@@ -3265,6 +3368,16 @@ function formClase(alumnoId) {
       <option value="grupal">Grupal</option>
       <option value="reserva">Reserva</option>
     </select>
+    <label class="flbl">Modalidad de pago</label>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button type="button" id="fc-pago-mensual" class="rep-btn activo" onclick="setModalidadPago('mensual')" style="background:rgba(0,255,179,0.8);border-color:var(--g);color:#000">
+        📅 Mensual
+      </button>
+      <button type="button" id="fc-pago-dia" class="rep-btn" onclick="setModalidadPago('dia')">
+        💵 Por día
+      </button>
+    </div>
+    <input type="hidden" id="fc-modalidad-pago" value="mensual">
     <label class="flbl">Alumnos (hasta 4)</label>
     <div style="margin-bottom:6px"><select class="finp" id="fc-a0" style="margin:0">${_alumnoOpts(alumnoInicial)}</select></div>
     ${_alumnoSlot(1,null,false)}${_alumnoSlot(2,null,false)}${_alumnoSlot(3,null,false)}
