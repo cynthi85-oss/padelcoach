@@ -2891,7 +2891,8 @@ function rNotifs() {
   S.clases.filter(c => c.fecha===ayer && c.estado!=='cancelada' && c.estado!=='cambiada' && !c.asistencia_confirmada).forEach(cl => {
     const al = cl.alumnoId ? S.alumnos.find(a=>a.id===cl.alumnoId) : null;
     if (!al) return;
-    // Ver si el alumno tiene pago registrado este mes
+    const esDiario = cl.modalidad_pago === 'dia' || cl.pagoModo === 'diario';
+    if (esDiario) return; // los diarios tienen su propia alerta
     const pagaMes = S.pagos.some(p =>
       p.alumnoId === al.id &&
       p.fecha && p.fecha.slice(0,7) === mesActualPago &&
@@ -2909,6 +2910,45 @@ function rNotifs() {
       labelNeg: '❌ No vino',
     });
   });
+
+  // ── Pago mensual pendiente (persiste hasta que pague) ──
+  // Por cada alumno que tuvo clase este mes y no tiene pago registrado
+  const alumnosConClaseMes = new Set();
+  S.clases.filter(c =>
+    c.fecha.slice(0,7) === mesActualPago &&
+    c.estado !== 'cancelada' &&
+    c.fecha < hoy && // solo clases ya pasadas
+    c.alumnoId &&
+    (!c.modalidad_pago || c.modalidad_pago === 'mensual') &&
+    c.pagoModo !== 'diario'
+  ).forEach(c => alumnosConClaseMes.add(c.alumnoId));
+
+  for (const alumnoId of alumnosConClaseMes) {
+    const al = S.alumnos.find(a => a.id === alumnoId);
+    if (!al) continue;
+    const pagaMes = S.pagos.some(p =>
+      p.alumnoId === alumnoId &&
+      p.fecha && p.fecha.slice(0,7) === mesActualPago &&
+      p.estado === 'pagado'
+    );
+    if (!pagaMes) {
+      // Calcular cuántas clases tiene este mes
+      const clasesEsteMes = S.clases.filter(c =>
+        c.fecha.slice(0,7) === mesActualPago &&
+        c.alumnoId === alumnoId &&
+        c.estado !== 'cancelada' &&
+        c.fecha < hoy
+      ).length;
+      notifs.push({
+        tipo: 'red', icon: '🔴',
+        titulo: `${al.nombre} — sin pago este mes`,
+        sub: `${clasesEsteMes} clase${clasesEsteMes>1?'s':''} dadas en ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][new Date().getMonth()]} sin cobrar`,
+        al,
+        accion: `alertaPagoRapido(${al.id}, null)`,
+        labelPos: '💰 Registrar pago',
+      });
+    }
+  }
 
   // ── Pago diario: clases de ayer con modalidad por día sin pago ──
   S.clases.filter(c =>
