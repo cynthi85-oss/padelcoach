@@ -3381,37 +3381,38 @@ function _alumnoSlot(i, selVal, visible) {
   </div>`;
 }
 function _filtrarAlumnos(i) {
-  const q = document.getElementById('fc-abuscar'+i)?.value.toLowerCase() || '';
-  document.getElementById('fc-a'+i).value = ''; // limpiar selección al escribir
-  _mostrarDropdown(i, q);
-}
-function _mostrarDropdown(i, q='') {
+  document.getElementById('fc-a'+i).value = '';
+  const q = document.getElementById('fc-abuscar'+i)?.value.toLowerCase().trim() || '';
   const drop = document.getElementById('fc-adrop'+i);
   if (!drop) return;
-  const inp = document.getElementById('fc-abuscar'+i);
-  const busq = q || inp?.value.toLowerCase() || '';
-  const filtered = busq ? S.alumnos.filter(a=>a.nombre.toLowerCase().includes(busq)) : S.alumnos;
-  if (!filtered.length) { drop.style.display='none'; return; }
-  drop.innerHTML = filtered.map(a => `
-    <div onclick="_elegirAlumno(${i},${a.id},'${a.nombre.replace(/'/g,"\'")}')"
-      style="padding:10px 14px;cursor:pointer;font-size:13px;color:var(--t1);
-      border-bottom:1px solid rgba(255,255,255,0.05)"
-      onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''">
+  const filtered = q ? S.alumnos.filter(a=>a.nombre.toLowerCase().includes(q)) : S.alumnos;
+  if (!filtered.length) { drop.innerHTML='<div style="padding:10px 14px;font-size:13px;color:var(--t2)">Sin resultados</div>'; drop.style.display='block'; return; }
+  drop.innerHTML = filtered.map(a =>
+    `<div onmousedown="_elegirAlumno(${i},${a.id},'${a.nombre.replace(/'/g,"\'")}',event)"
+      style="padding:11px 14px;cursor:pointer;font-size:14px;color:var(--t1);border-bottom:1px solid rgba(255,255,255,0.05)">
       ${a.nombre}
-    </div>`).join('');
+    </div>`
+  ).join('');
   drop.style.display = 'block';
-  // Cerrar al hacer clic afuera
-  setTimeout(() => document.addEventListener('click', function h(e) {
-    if (!drop.contains(e.target) && e.target.id !== 'fc-abuscar'+i) {
-      drop.style.display = 'none';
-      document.removeEventListener('click', h);
-    }
-  }), 100);
 }
-function _elegirAlumno(i, id, nombre) {
+function _mostrarDropdown(i) {
+  // Mostrar todos al hacer foco
+  _filtrarAlumnos(i);
+  // Cerrar al perder foco (con delay para permitir el tap)
+  setTimeout(() => {
+    const inp = document.getElementById('fc-abuscar'+i);
+    if (inp) inp.onblur = () => setTimeout(()=>{
+      const drop = document.getElementById('fc-adrop'+i);
+      if (drop) drop.style.display='none';
+    }, 200);
+  }, 50);
+}
+function _elegirAlumno(i, id, nombre, e) {
+  if (e) e.preventDefault();
   document.getElementById('fc-a'+i).value = id;
   document.getElementById('fc-abuscar'+i).value = nombre;
-  document.getElementById('fc-adrop'+i).style.display = 'none';
+  const drop = document.getElementById('fc-adrop'+i);
+  if (drop) drop.style.display = 'none';
 }
 function _limpiarSlot(i) {
   document.getElementById('fc-aw'+i).style.display='none';
