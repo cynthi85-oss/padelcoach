@@ -2376,7 +2376,15 @@ async function formClaseEdit(id) {
     </div>
     <input type="hidden" id="fc-modalidad-pago" value="${cl.modalidad_pago||'mensual'}">
     <label class="flbl">Alumnos (hasta 4)</label>
-    <div style="margin-bottom:6px"><select class="finp" id="fc-a0" style="margin:0">${_alumnoOpts(ids[0])}</select></div>
+    <div style="margin-bottom:6px;position:relative">
+      <input type="hidden" id="fc-a0" value="${ids[0]||''}">
+      <input class="finp" id="fc-abuscar0" style="margin:0" placeholder="🔍 Buscar alumno..."
+        value="${ids[0] ? (S.alumnos.find(a=>a.id===ids[0])||{}).nombre||'' : ''}"
+        oninput="_filtrarAlumnos(0)" onfocus="_mostrarDropdown(0)" autocomplete="off">
+      <div id="fc-adrop0" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;
+        background:var(--s2);border:1px solid var(--s5);border-radius:12px;
+        max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4);margin-top:4px"></div>
+    </div>
     ${_alumnoSlot(1,ids[1]||null,cl.tipo==='grupal'||!!ids[1])}${_alumnoSlot(2,ids[2]||null,cl.tipo==='grupal'||!!ids[2])}${_alumnoSlot(3,ids[3]||null,cl.tipo==='grupal'||!!ids[3])}
     <button type="button" id="fc-addal" onclick="_addAlumnoSlot()" class="btn-outline" style="width:100%;margin-bottom:10px;${(ids.length>=4||cl.tipo==='grupal')?'display:none':''}">+ Agregar alumno</button>
     <label class="flbl">Estado</label>
@@ -3354,10 +3362,63 @@ function _alumnoOpts(selVal) {
     S.alumnos.map(a => `<option value="${a.id}" ${a.id===selVal?'selected':''}>${a.nombre}</option>`).join('');
 }
 function _alumnoSlot(i, selVal, visible) {
-  return `<div id="fc-aw${i}" style="display:${visible?'flex':'none'};align-items:center;gap:6px;margin-bottom:6px">
-    <select class="finp" id="fc-a${i}" style="flex:1;margin:0">${_alumnoOpts(selVal)}</select>
-    <button type="button" onclick="document.getElementById('fc-aw${i}').style.display='none';document.getElementById('fc-a${i}').value='';document.getElementById('fc-addal').style.display='block'" style="background:var(--s3);border:none;color:var(--t1);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px">×</button>
+  const al = selVal ? S.alumnos.find(a=>a.id===selVal) : null;
+  return `<div id="fc-aw${i}" style="display:${visible?'flex':'none'};align-items:center;gap:6px;margin-bottom:6px;position:relative">
+    <input type="hidden" id="fc-a${i}" value="${selVal||''}">
+    <div style="flex:1;position:relative">
+      <input class="finp" id="fc-abuscar${i}" style="margin:0;padding-right:32px"
+        placeholder="🔍 Buscar alumno..."
+        value="${al?al.nombre:''}"
+        oninput="_filtrarAlumnos(${i})"
+        onfocus="_mostrarDropdown(${i})"
+        autocomplete="off">
+      <div id="fc-adrop${i}" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;
+        background:var(--s2);border:1px solid var(--s5);border-radius:12px;
+        max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4);margin-top:4px">
+      </div>
+    </div>
+    <button type="button" onclick="_limpiarSlot(${i})" style="background:var(--s3);border:none;color:var(--t1);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px;flex-shrink:0">×</button>
   </div>`;
+}
+function _filtrarAlumnos(i) {
+  const q = document.getElementById('fc-abuscar'+i)?.value.toLowerCase() || '';
+  document.getElementById('fc-a'+i).value = ''; // limpiar selección al escribir
+  _mostrarDropdown(i, q);
+}
+function _mostrarDropdown(i, q='') {
+  const drop = document.getElementById('fc-adrop'+i);
+  if (!drop) return;
+  const inp = document.getElementById('fc-abuscar'+i);
+  const busq = q || inp?.value.toLowerCase() || '';
+  const filtered = busq ? S.alumnos.filter(a=>a.nombre.toLowerCase().includes(busq)) : S.alumnos;
+  if (!filtered.length) { drop.style.display='none'; return; }
+  drop.innerHTML = filtered.map(a => `
+    <div onclick="_elegirAlumno(${i},${a.id},'${a.nombre.replace(/'/g,"\'")}')"
+      style="padding:10px 14px;cursor:pointer;font-size:13px;color:var(--t1);
+      border-bottom:1px solid rgba(255,255,255,0.05)"
+      onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''">
+      ${a.nombre}
+    </div>`).join('');
+  drop.style.display = 'block';
+  // Cerrar al hacer clic afuera
+  setTimeout(() => document.addEventListener('click', function h(e) {
+    if (!drop.contains(e.target) && e.target.id !== 'fc-abuscar'+i) {
+      drop.style.display = 'none';
+      document.removeEventListener('click', h);
+    }
+  }), 100);
+}
+function _elegirAlumno(i, id, nombre) {
+  document.getElementById('fc-a'+i).value = id;
+  document.getElementById('fc-abuscar'+i).value = nombre;
+  document.getElementById('fc-adrop'+i).style.display = 'none';
+}
+function _limpiarSlot(i) {
+  document.getElementById('fc-aw'+i).style.display='none';
+  document.getElementById('fc-a'+i).value='';
+  document.getElementById('fc-abuscar'+i).value='';
+  const addBtn = document.getElementById('fc-addal');
+  if (addBtn) addBtn.style.display='block';
 }
 function _addAlumnoSlot() {
   for (let i = 1; i <= 3; i++) {
@@ -3419,7 +3480,15 @@ function formClase(alumnoId) {
     </div>
     <input type="hidden" id="fc-modalidad-pago" value="mensual">
     <label class="flbl">Alumnos (hasta 4)</label>
-    <div style="margin-bottom:6px"><select class="finp" id="fc-a0" style="margin:0">${_alumnoOpts(alumnoInicial)}</select></div>
+    <div style="margin-bottom:6px;position:relative">
+      <input type="hidden" id="fc-a0" value="${alumnoInicial||''}">
+      <input class="finp" id="fc-abuscar0" style="margin:0" placeholder="🔍 Buscar alumno..."
+        value="${alumnoInicial ? (S.alumnos.find(a=>a.id===alumnoInicial)||{}).nombre||'' : ''}"
+        oninput="_filtrarAlumnos(0)" onfocus="_mostrarDropdown(0)" autocomplete="off">
+      <div id="fc-adrop0" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;
+        background:var(--s2);border:1px solid var(--s5);border-radius:12px;
+        max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4);margin-top:4px"></div>
+    </div>
     ${_alumnoSlot(1,null,false)}${_alumnoSlot(2,null,false)}${_alumnoSlot(3,null,false)}
     <button type="button" id="fc-addal" onclick="_addAlumnoSlot()" class="btn-outline" style="width:100%;margin-bottom:10px">+ Agregar alumno</button>
     <label class="flbl">Estado</label>
