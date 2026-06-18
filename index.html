@@ -2358,16 +2358,6 @@ async function formClaseEdit(id) {
     <select class="finp" id="fc-tipo" onchange="_onTipoClaseChange()">
       ${['particular','grupal','reserva'].map(t=>`<option value="${t}" ${cl.tipo===t?'selected':''}>${t}</option>`).join('')}
     </select>
-    <label class="flbl">Modalidad de pago</label>
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <button type="button" id="fc-pago-mensual" class="rep-btn activo" onclick="setModalidadPago('mensual')" style="background:rgba(0,255,179,0.8);border-color:var(--g);color:#000">
-        📅 Mensual
-      </button>
-      <button type="button" id="fc-pago-dia" class="rep-btn" onclick="setModalidadPago('dia')">
-        💵 Por día
-      </button>
-    </div>
-    <input type="hidden" id="fc-modalidad-pago" value="${cl.modalidad_pago||'mensual'}">
     <label class="flbl">Alumnos (hasta 4)</label>
     <div style="margin-bottom:6px;position:relative">
       <input type="hidden" id="fc-a0" value="${ids[0]||''}">
@@ -3463,16 +3453,6 @@ function formClase(alumnoId) {
       <option value="grupal">Grupal</option>
       <option value="reserva">Reserva</option>
     </select>
-    <label class="flbl">Modalidad de pago</label>
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <button type="button" id="fc-pago-mensual" class="rep-btn activo" onclick="setModalidadPago('mensual')" style="background:rgba(0,255,179,0.8);border-color:var(--g);color:#000">
-        📅 Mensual
-      </button>
-      <button type="button" id="fc-pago-dia" class="rep-btn" onclick="setModalidadPago('dia')">
-        💵 Por día
-      </button>
-    </div>
-    <input type="hidden" id="fc-modalidad-pago" value="mensual">
     <label class="flbl">Alumnos (hasta 4)</label>
     <div style="margin-bottom:6px;position:relative">
       <input type="hidden" id="fc-a0" value="${alumnoInicial||''}">
