@@ -1101,6 +1101,17 @@ async function boot() {
 // Run theme immediately
 (function(){ const t=localStorage.getItem('theme')||'dark'; document.documentElement.dataset.theme=t; })();
 
+// Monitor de conectividad
+window.addEventListener('online',  () => { document.getElementById('offline-banner')?.remove(); loadAll(); toast('✅ Conexión restaurada'); });
+window.addEventListener('offline', () => {
+  if (document.getElementById('offline-banner')) return;
+  const b = document.createElement('div');
+  b.id = 'offline-banner';
+  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#e17055;color:#fff;text-align:center;padding:8px;font-size:13px;font-weight:700';
+  b.textContent = '📡 Sin conexión — los cambios se guardan localmente';
+  document.body.prepend(b);
+});
+
 async function loadAll() {
   const [a,c,p,n,cfg,g] = await Promise.all([
     DB.all('alumnos'), DB.all('clases'), DB.all('pagos'), DB.all('notas'), DB.all('config'), DB.all('gastos')
@@ -1323,6 +1334,55 @@ function rInicio() {
     <div class="t-sec">Esta semana</div>
     <div class="card"><div class="chart">${bars}</div></div>
     ${balRows ? `<div class="t-sec">Ingresos vs gastos</div><div class="card">${balRows}</div>` : ''}
+    ${(()=>{
+      // Retención: alumnos activos vs perdidos últimos 3 meses
+      const hoy3m = fmt(new Date(now.getFullYear(), now.getMonth()-3, 1));
+      const alumnosConClase3m = new Set(
+        S.clases.filter(c=>c.fecha>=hoy3m&&c.alumnoId).map(c=>c.alumnoId)
+      );
+      const totalAl = S.alumnos.length;
+      const activosUlt = alumnosConClase3m.size;
+      const inactivosUlt = totalAl - activosUlt;
+      const pctRetension = totalAl>0 ? Math.round(activosUlt/totalAl*100) : 100;
+
+      // Alumnos nuevos este mes
+      const nuevosEsteMes = S.alumnos.filter(a=>a.desde&&a.desde.slice(0,7)===hoy.slice(0,7)).length;
+
+      // Alumno más activo del mes
+      const clasesXAl = {};
+      S.clases.filter(c=>c.fecha.slice(0,7)===hoy.slice(0,7)&&c.alumnoId&&c.estado!=='cancelada')
+        .forEach(c=>{clasesXAl[c.alumnoId]=(clasesXAl[c.alumnoId]||0)+1;});
+      const topAlId = Object.entries(clasesXAl).sort((a,b)=>b[1]-a[1])[0];
+      const topAl = topAlId ? S.alumnos.find(a=>a.id===parseInt(topAlId[0])) : null;
+
+      if (totalAl===0) return '';
+      return `<div class="t-sec">📊 Retención de alumnos</div>
+      <div class="card" style="padding:14px">
+        <div style="display:flex;gap:12px;margin-bottom:12px">
+          <div style="flex:1;text-align:center;background:var(--s3);border-radius:12px;padding:10px 6px">
+            <div style="font-size:22px;font-weight:800;color:var(--acc)">${pctRetension}%</div>
+            <div style="font-size:11px;color:var(--t2)">retención</div>
+          </div>
+          <div style="flex:1;text-align:center;background:var(--s3);border-radius:12px;padding:10px 6px">
+            <div style="font-size:22px;font-weight:800;color:var(--g)">${activosUlt}</div>
+            <div style="font-size:11px;color:var(--t2)">activos</div>
+          </div>
+          <div style="flex:1;text-align:center;background:var(--s3);border-radius:12px;padding:10px 6px">
+            <div style="font-size:22px;font-weight:800;color:${inactivosUlt>0?'var(--am)':'var(--g)'}">${inactivosUlt}</div>
+            <div style="font-size:11px;color:var(--t2)">inactivos</div>
+          </div>
+          <div style="flex:1;text-align:center;background:var(--s3);border-radius:12px;padding:10px 6px">
+            <div style="font-size:22px;font-weight:800;color:var(--bl)">${nuevosEsteMes}</div>
+            <div style="font-size:11px;color:var(--t2)">nuevos</div>
+          </div>
+        </div>
+        <div style="background:var(--s3);border-radius:8px;height:8px;overflow:hidden;margin-bottom:6px">
+          <div style="background:linear-gradient(90deg,var(--g),var(--acc));height:100%;width:${pctRetension}%;border-radius:8px;transition:.6s"></div>
+        </div>
+        ${topAl?`<div style="font-size:12px;color:var(--t2)">⭐ Más activo del mes: <strong style="color:var(--t1)">${topAl.nombre.split(' ')[0]}</strong> (${topAlId[1]} clases)</div>`:''}
+        ${inactivosUlt>0?`<div style="font-size:12px;color:var(--am);margin-top:4px">⚠️ ${inactivosUlt} alumno${inactivosUlt>1?'s':''} sin clases en los últimos 3 meses</div>`:'<div style="font-size:12px;color:var(--g);margin-top:4px">✅ Todos los alumnos estuvieron activos estos 3 meses</div>'}
+      </div>`;
+    })()}
     <div class="t-sec" style="display:flex;justify-content:space-between;align-items:center">
       <span>📈 Ingresos últimos 6 meses</span>
     </div>
@@ -3117,6 +3177,23 @@ function rNotifs() {
       sub:`${al.nombre} · ${fmtMoney(p.monto)} · vence ${fmtDisp(man)}`,
       al,
     });
+  });
+
+  // ── Alumnos inactivos (sin clases en 2 semanas) ──
+  const hace2sem = fmt(new Date(Date.now()-14*86400000));
+  S.alumnos.forEach(al => {
+    const ultimaClase = S.clases
+      .filter(c=>c.alumnoId===al.id&&c.estado!=='cancelada')
+      .sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
+    if (!ultimaClase) return;
+    if (ultimaClase.fecha < hace2sem) {
+      notifs.push({
+        tipo:'blue', icon:'👤',
+        titulo:`${al.nombre.split(' ')[0]} — sin clases hace más de 2 semanas`,
+        sub:`Última clase: ${fmtDisp(ultimaClase.fecha)} · ¿Seguirá entrenando?`,
+        al,
+      });
+    }
   });
 
   // ── NUEVA: Cambios de clase pendientes ──
