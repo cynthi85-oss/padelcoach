@@ -3710,9 +3710,11 @@ function _onTipoClaseChange() {
   if (wTexto)   wTexto.style.display   = reserva ? 'none' : 'block';
   if (wReserva) wReserva.style.display = reserva ? 'block' : 'none';
 
-  // Modalidad de pago: ocultar para reserva
-  const wPago = document.getElementById('fc-pago-wrap');
-  if (wPago) wPago.style.display = reserva ? 'none' : 'block';
+  // Modalidad de pago: ocultar para reserva (ambos formularios)
+  ['fc-pago-wrap','fc-pago-wrap-new'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = reserva ? 'none' : 'block';
+  });
 }
 
 function setCanchaReserva(tipo) {
@@ -3776,7 +3778,7 @@ function formClase(alumnoId) {
       <option value="pendiente">Pendiente</option>
       <option value="cancelada">Cancelada</option>
     </select>
-    <div id="fc-pago-wrap">
+    <div id="fc-pago-wrap-new">
     <label class="flbl">Modalidad de pago</label>
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <button type="button" id="fc-pm-diario" class="rep-btn activo" onclick="setPagoModo('diario')">💵 Por clase</button>
