@@ -5191,7 +5191,9 @@ const GCAL = (() => {
   async function limpiarHuerfanos() {
     try {
       await ensureToken();
+      if (!accessToken) { toast('Primero conectá Google Calendar', 'err'); return; }
       if (!dedicatedCalId) await ensureDedicatedCalendar();
+      if (!dedicatedCalId) { toast('No se encontró el calendario PadelCoach', 'err'); return; }
       toast('🔍 Analizando Google Calendar...');
       const calEnc    = encodeURIComponent(dedicatedCalId);
       const allEvents = await fetchExistingEvents();
@@ -5232,7 +5234,8 @@ const GCAL = (() => {
         }
       }
 
-      if (!huerfanos.length) { toast('✅ Todo en orden — no hay eventos sobrantes'); return; }
+      console.log('GCal eventos:', allEvents.length, '| App clases:', S.clases.length, '| Huerfanos:', huerfanos.length);
+      if (!huerfanos.length) { toast('✅ Todo en orden — '+allEvents.length+' eventos GCal, todos tienen clase en la app'); return; }
 
       const lista = huerfanos.map(e=>'• '+(e.summary||'Sin titulo')+' ('+(e.start?.dateTime||e.start?.date||'').slice(0,10)+')').join(', ');
       const ok = await confirm(huerfanos.length+' evento(s) en GCal sin clase en la app: '+lista+'. Eliminarlos?');
