@@ -5187,6 +5187,36 @@ const GCAL = (() => {
     }
   }
 
+  // ── limpiarHuerfanos: borra eventos GCal sin clase en la app ──────
+  async function limpiarHuerfanos() {
+    try {
+      await ensureToken();
+      if (!dedicatedCalId) await ensureDedicatedCalendar();
+      toast('🔍 Buscando eventos huérfanos...');
+      const calEnc    = encodeURIComponent(dedicatedCalId);
+      const allEvents = await fetchExistingEvents();
+      const idsEnApp  = new Set(S.clases.map(c => String(c.id)));
+      const huerfanos = [];
+      for (const ev of allEvents) {
+        const match = (ev.description||'').match(/\[padelcoach:(\d+)\]/);
+        if (!match) continue;
+        if (!idsEnApp.has(match[1])) huerfanos.push(ev);
+      }
+      if (!huerfanos.length) { toast('✅ No hay eventos huérfanos'); return; }
+      const lista = huerfanos.map(e=>'• '+(e.summary||'Sin titulo')+' ('+(e.start?.dateTime||e.start?.date||'').slice(0,10)+')').join('\n');
+      const ok = await confirm(huerfanos.length+' evento(s) en GCal sin clase en la app:\n\n'+lista+'\n\n Eliminarlos?');
+      if (!ok) return;
+      let borrados = 0;
+      for (const ev of huerfanos) {
+        try {
+          await apiFetch(`https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${ev.recurringEventId||ev.id}`,{ method:'DELETE' });
+          borrados++;
+        } catch(e2) {}
+      }
+      toast(`✅ ${borrados} evento(s) huérfano(s) eliminado(s)`);
+    } catch(e) { console.error('limpiarHuerfanos:',e); toast('Error','err'); }
+  }
+
   // ── limpiarDuplicados: borra eventos duplicados del mes en GCal ───
   async function limpiarDuplicados() {
     try {
@@ -5370,6 +5400,9 @@ const GCAL = (() => {
       </button>
       <button class="btn-sync" style="background:rgba(255,61,107,0.12);color:#ff3d6b;border-color:rgba(255,61,107,0.3);margin-top:6px" onclick="GCAL.limpiarDuplicados()">
         🧹 Limpiar duplicados del mes
+      </button>
+      <button class="btn-sync" style="background:rgba(255,170,0,0.12);color:#ffaa00;border-color:rgba(255,170,0,0.3);margin-top:6px" onclick="GCAL.limpiarHuerfanos()">
+        🔍 Borrar eventos sin clase en la app
       </button>`;
   }
 
