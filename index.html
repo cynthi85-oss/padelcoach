@@ -5486,6 +5486,7 @@ const GCAL = (() => {
     actualizarColorClase,
     deleteSerieDelMes,
     limpiarDuplicados,
+    limpiarHuerfanos,
     deleteOne,
     importFromGCal: () => syncBidireccional(false),
     syncManual() { setLoading(true); syncBidireccional(true).finally(() => setLoading(false)); },
