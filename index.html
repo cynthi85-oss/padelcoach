@@ -4982,32 +4982,55 @@ const GCAL = (() => {
       });
 
       // ── 1. App → GCal: crear/actualizar clases de la app ──────────
+      // Construir índice por título+fecha para detectar duplicados
+      const gcalByTituloFecha = {};
+      events.forEach(ev => {
+        const fecha = (ev.start?.dateTime || ev.start?.date || '').slice(0,10);
+        const tit   = (ev.summary || '').toLowerCase().trim();
+        const key   = tit + '|' + fecha;
+        if (!gcalByTituloFecha[key]) gcalByTituloFecha[key] = ev;
+      });
+
       let pushed = 0;
       for (const cl of S.clases) {
-        if (cl.gcal_imported) continue; // estas las maneja GCal
+        if (cl.gcal_imported) continue;
         const event = buildEvent(cl);
-        const existing = tagMap[String(cl.id)];
+        const appTitle = ('🎾 ' + cl.titulo).toLowerCase().trim();
+        const keyTF    = appTitle + '|' + cl.fecha;
+
+        // Buscar evento existente: primero por tag, luego por título+fecha
+        let existing = tagMap[String(cl.id)];
+        if (!existing && cl.gcal_event_id) {
+          existing = gcalById[cl.gcal_event_id];
+        }
+        if (!existing) {
+          existing = gcalByTituloFecha[keyTF]; // detecta recurrentes sin tag
+        }
+
         if (existing) {
-          // Verificar si hay diferencias antes de actualizar (evita escrituras innecesarias)
           const gcalStart = existing.start?.dateTime?.slice(0,16);
-          const appStart  = `${cl.fecha}T${cl.hora}`;
+          const appStart  = cl.fecha + 'T' + cl.hora;
           const gcalTitle = existing.summary || '';
-          const appTitle  = `🎾 ${cl.titulo}`;
-          if (gcalStart !== appStart || gcalTitle !== appTitle) {
-            await apiFetch(`https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${existing.id}`,
+          const appTitleFmt = '🎾 ' + cl.titulo;
+          if (gcalStart !== appStart || gcalTitle !== appTitleFmt) {
+            await apiFetch('https://www.googleapis.com/calendar/v3/calendars/'+calEnc+'/events/'+existing.id,
               { method: 'PUT', body: JSON.stringify(event) });
             pushed++;
           }
-          // Guardar gcal_event_id en la clase para borrado rápido
           if (!cl.gcal_event_id) {
             await DB.put('clases', { ...cl, gcal_event_id: existing.id });
           }
         } else {
-          // Crear en GCal y guardar el gcal_event_id en la clase
-          const created = await apiFetch(`https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events`,
-            { method: 'POST', body: JSON.stringify(event) });
-          await DB.put('clases', { ...cl, gcal_event_id: created.id });
-          pushed++;
+          // Solo crear si NO existe ya por título+fecha (doble chequeo anti-duplicados)
+          if (!gcalByTituloFecha[keyTF]) {
+            const created = await apiFetch('https://www.googleapis.com/calendar/v3/calendars/'+calEnc+'/events',
+              { method: 'POST', body: JSON.stringify(event) });
+            if (created?.id) {
+              await DB.put('clases', { ...cl, gcal_event_id: created.id });
+              gcalByTituloFecha[keyTF] = created; // registrar para evitar duplicar en esta misma sesión
+            }
+            pushed++;
+          }
         }
       }
 
