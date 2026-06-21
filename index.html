@@ -3776,6 +3776,7 @@ function formClase(alumnoId) {
       <option value="pendiente">Pendiente</option>
       <option value="cancelada">Cancelada</option>
     </select>
+    <div id="fc-pago-wrap">
     <label class="flbl">Modalidad de pago</label>
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <button type="button" id="fc-pm-diario" class="rep-btn activo" onclick="setPagoModo('diario')">💵 Por clase</button>
@@ -3783,6 +3784,7 @@ function formClase(alumnoId) {
     </div>
     <div style="font-size:11.5px;color:var(--t1);margin-bottom:8px" id="fc-pm-info">Al terminar cada clase te pregunta si pagó, y te insiste cada día hasta registrar el pago.</div>
     <input type="hidden" id="fc-pagomodo" value="diario">
+    </div>
     <label class="flbl">Repetir clase</label>
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <button type="button" id="fc-rep-no" class="rep-btn activo" onclick="setRepetir('no')">
