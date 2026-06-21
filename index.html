@@ -5196,33 +5196,39 @@ const GCAL = (() => {
       const calEnc    = encodeURIComponent(dedicatedCalId);
       const allEvents = await fetchExistingEvents();
 
-      // Construir set de claves "título normalizado + fecha" de la app
+      // Construir sets de claves de la app
+      const idsApp     = new Set(S.clases.map(c => String(c.id)));
+      // Normalizar: sacar emoji 🎾, minúsculas, trim
+      const norm = s => (s||'').replace(/🎾\s*/g,'').toLowerCase().trim();
+      // Claves por fecha+titulo (con y sin emoji)
       const clavesApp = new Set();
-      const idsApp    = new Set(S.clases.map(c => String(c.id)));
       S.clases.forEach(c => {
-        const tit = ('🎾 ' + c.titulo).toLowerCase().trim();
-        clavesApp.add(tit + '|' + c.fecha);
+        clavesApp.add(norm(c.titulo) + '|' + c.fecha);
+        clavesApp.add(norm('🎾 '+c.titulo) + '|' + c.fecha);
       });
 
       const huerfanos = [];
-      const vistos = new Set(); // evitar duplicar series
+      const vistos    = new Set();
 
       for (const ev of allEvents) {
-        // Método 1: tiene tag pero la clase no existe
-        const match = (ev.description||'').match(/\[padelcoach:(\d+)\]/);
-        if (match && !idsApp.has(match[1])) {
-          const baseId = ev.recurringEventId || ev.id;
-          if (!vistos.has(baseId)) { vistos.add(baseId); huerfanos.push(ev); }
-          continue;
-        }
-        // Método 2: no tiene tag — verificar por título+fecha
-        if (!match) {
-          const fecha = (ev.start?.dateTime||ev.start?.date||'').slice(0,10);
-          const tit   = (ev.summary||'').toLowerCase().trim();
-          if (fecha && tit && !clavesApp.has(tit+'|'+fecha)) {
+        const fecha   = (ev.start?.dateTime||ev.start?.date||'').slice(0,10);
+        if (!fecha) continue;
+        const match   = (ev.description||'').match(/\[padelcoach:(\d+)\]/);
+
+        // Método 1: tiene tag pero clase no existe en la app
+        if (match) {
+          if (!idsApp.has(match[1])) {
             const baseId = ev.recurringEventId || ev.id;
             if (!vistos.has(baseId)) { vistos.add(baseId); huerfanos.push(ev); }
           }
+          continue; // si tiene tag válido, no chequear por título
+        }
+
+        // Método 2: sin tag — verificar por título normalizado + fecha
+        const titNorm = norm(ev.summary||'');
+        if (titNorm && !clavesApp.has(titNorm+'|'+fecha)) {
+          const baseId = ev.recurringEventId || ev.id;
+          if (!vistos.has(baseId)) { vistos.add(baseId); huerfanos.push(ev); }
         }
       }
 
