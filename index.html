@@ -5034,18 +5034,10 @@ const GCAL = (() => {
         }
       }
 
-      // ── 2. GCal → App: detectar eventos eliminados en GCal ────────
-      // Si una clase tiene gcal_event_id pero ese evento ya no existe en GCal → eliminar en la app
-      let deletedFromGcal = 0;
-      for (const cl of [...S.clases]) {
-        const gcalEvId = cl.gcal_event_id || (cl.gcal_imported ? cl.gcal_imported : null);
-        if (!gcalEvId) continue;
-        if (!gcalById[gcalEvId]) {
-          // El evento fue borrado en GCal → borrar en la app
-          await DB.del('clases', cl.id);
-          deletedFromGcal++;
-        }
-      }
+      // ── 2. GCal → App: eliminados en GCal ────────────────────────────
+      // DESHABILITADO: causaba borrado de clases válidas cuando GCal no cargaba bien
+      // La app es la fuente de verdad para borrado.
+      const deletedFromGcal = 0;
 
       // ── 2b. GCal → App: actualizar clases de la app modificadas en GCal ──
       // Si el evento en GCal tiene distinta hora o título que la clase en la app → actualizar la app
@@ -5080,39 +5072,10 @@ const GCAL = (() => {
         }
       }
 
-      // ── 3. GCal → App: importar eventos nuevos creados en GCal ────
-      // Eventos sin tag [padelcoach:N] que no fueron importados antes
-      const importadosIds = new Set(
-        S.clases.filter(c => c.gcal_imported).map(c => c.gcal_imported)
-      );
-      const nuevosEnGcal = events.filter(ev => {
-        if (importadosIds.has(ev.id)) return false;
-        const desc = ev.description || '';
-        if (desc.includes(`[${TAG}:`)) return false; // ya es de la app
-        if (ev.status === 'cancelled') return false;
-        return true;
-      });
-
-      let imported = 0;
-      for (const ev of nuevosEnGcal) {
-        if (!ev.start?.dateTime && !ev.start?.date) continue;
-        const startDt = new Date(ev.start.dateTime || ev.start.date + 'T00:00:00');
-        const endDt   = new Date(ev.end?.dateTime  || ev.end?.date   + 'T00:00:00' || startDt);
-        const dur     = Math.round((endDt - startDt) / 60000) || 60;
-        const pad     = n => String(n).padStart(2,'0');
-        const fecha   = `${startDt.getFullYear()}-${pad(startDt.getMonth()+1)}-${pad(startDt.getDate())}`;
-        const hora    = `${pad(startDt.getHours())}:${pad(startDt.getMinutes())}`;
-        const titulo  = (ev.summary || 'Clase importada').replace(/^🎾\s*/, '');
-        await DB.add('clases', {
-          titulo, fecha, hora, dur,
-          cancha: ev.location || 'Cancha 1',
-          tipo: 'clase', alumnoId: null, estado: 'confirmada',
-          notas: (ev.description || '').trim(),
-          gcal_imported: ev.id,
-          gcal_event_id: ev.id
-        });
-        imported++;
-      }
+      // ── 3. GCal → App: importación DESHABILITADA (causaba duplicados) ────
+      // La app es la fuente de verdad. Los eventos se crean SOLO desde la app.
+      // Si querés importar un evento de GCal, usá el botón "Importar desde GCal".
+      const imported = 0;
 
       // ── 4. Recargar si hubo cambios ───────────────────────────────
       if (deletedFromGcal > 0 || imported > 0 || pushed > 0 || updatedFromGcal > 0) {
