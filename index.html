@@ -2428,7 +2428,8 @@ function rPagos(vista = 'alumnos') {
       <div class="card" style="padding:16px">${mesBars}</div>
       <div class="t-sec">Pagos por alumno (total)</div>
       <div class="card-flush">${rankRows}</div>
-      <button class="btn-outline" style="margin-top:12px" onclick="generarResumenMensual()">📊 Generar resumen del mes</button>`;
+      <button class="btn-outline" style="margin-top:12px" onclick="generarResumenMensual()">📊 Generar resumen del mes</button>
+      <button class="btn-outline" style="margin-top:8px;border-color:var(--acc);color:var(--acc)" onclick="replicarMesSiguiente()">📅 Replicar clases al mes siguiente</button>`;
   }
  
   document.getElementById('sec-pagos').innerHTML = `
@@ -2717,6 +2718,60 @@ function recordatoriosManana() {
   document.getElementById('msave').style.display = 'none';
 }
 window.recordatoriosManana = recordatoriosManana;
+
+// Esta función se insertará en el HTML
+async function replicarMesSiguiente() {
+  const hoy    = new Date();
+  const mesAct = fmt(hoy).slice(0,7);
+  const yAct   = hoy.getFullYear();
+  const mAct   = hoy.getMonth();
+  const ySig   = mAct === 11 ? yAct + 1 : yAct;
+  const mSig   = mAct === 11 ? 0 : mAct + 1;
+  const MESES  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const DIAS   = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+  const clasesActuales = S.clases.filter(c =>
+    c.fecha.slice(0,7) === mesAct && c.estado !== 'cancelada' && !c.gcal_imported
+  );
+  if (!clasesActuales.length) { toast('No hay clases este mes para replicar', 'err'); return; }
+
+  const gruposMap = {};
+  clasesActuales.forEach(cl => {
+    const dow = new Date(cl.fecha + 'T12:00:00').getDay();
+    const key = cl.titulo + '|' + cl.hora + '|' + dow;
+    if (!gruposMap[key]) gruposMap[key] = { ...cl, dow, clases: [] };
+    gruposMap[key].clases.push(cl);
+  });
+
+  const ultimoDiaSig = new Date(ySig, mSig + 1, 0).getDate();
+  const preview = Object.values(gruposMap).map(g => {
+    const fechasSig = [];
+    for (let d = 1; d <= ultimoDiaSig; d++) {
+      const f = new Date(ySig, mSig, d);
+      if (f.getDay() === g.dow) fechasSig.push(f);
+    }
+    return { ...g, fechasSig };
+  });
+  const totalNuevas = preview.reduce((s,g) => s + g.fechasSig.length, 0);
+
+  openModal('Replicar clases — ' + MESES[mSig], '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">Se van a crear <strong style="color:var(--acc)">' + totalNuevas + ' clases</strong> en ' + MESES[mSig] + ' ' + ySig + ':</div><div style="max-height:260px;overflow-y:auto">' +
+    preview.map(g => '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06)"><div style="font-size:13px;font-weight:600">' + g.titulo + ' · ' + g.hora + 'hs · ' + DIAS[g.dow] + '</div><div style="font-size:11px;color:var(--t2);margin-top:2px">' + g.fechasSig.map(f=>f.getDate()+'/'+(f.getMonth()+1)).join(', ') + ' (' + g.fechasSig.length + ' clases)</div></div>').join('') +
+    '</div><div style="font-size:12px;color:var(--am);margin-top:10px">No se duplican clases que ya existan ese día y hora</div>',
+    async () => {
+      let creadas = 0;
+      for (const g of preview) {
+        for (const fecha of g.fechasSig) {
+          const fechaStr = fmt(fecha);
+          if (S.clases.some(c => c.fecha===fechaStr && c.titulo===g.titulo && c.hora===g.hora)) continue;
+          await DB.add('clases', { titulo:g.titulo, fecha:fechaStr, hora:g.hora, dur:g.dur||60, cancha:g.cancha||'Cancha 1', tipo:g.tipo||'particular', alumnoId:g.alumnoId||null, alumnosIds:g.alumnosIds||[], estado:'confirmada', notas:'', modalidad_pago:g.modalidad_pago||'mensual', pagoModo:g.pagoModo||'mensual' });
+          creadas++;
+        }
+      }
+      await loadAll(); closeModal(); haptic('success');
+      toast('✅ ' + creadas + ' clases creadas para ' + MESES[mSig]);
+      if (GCAL.isConnected()) GCAL.syncManual();
+    }, '✅ Crear ' + totalNuevas + ' clases');
+}
 
 function generarResumenMensual() {
   const hoy = new Date();
