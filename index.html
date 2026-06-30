@@ -5334,18 +5334,50 @@ const GCAL = (() => {
       console.log('GCal eventos:', allEvents.length, '| App clases:', S.clases.length, '| Huerfanos:', huerfanos.length);
       if (!huerfanos.length) { toast('✅ Todo en orden — '+allEvents.length+' eventos GCal, todos tienen clase en la app'); return; }
 
-      const lista = huerfanos.map(e=>'• '+(e.summary||'Sin titulo')+' ('+(e.start?.dateTime||e.start?.date||'').slice(0,10)+')').join(', ');
-      const ok = await confirm(huerfanos.length+' evento(s) en GCal sin clase en la app: '+lista+'. Eliminarlos?');
+      // Ordenar por fecha
+      huerfanos.sort((a,b) => {
+        const fa = a.start?.dateTime||a.start?.date||'';
+        const fb = b.start?.dateTime||b.start?.date||'';
+        return fa.localeCompare(fb);
+      });
 
+      window._huerfanosGCal = huerfanos;
+      window._huerfanosCalEnc = calEnc;
 
-      let borrados = 0;
-      for (const ev of huerfanos) {
-        try {
-          await apiFetch('https://www.googleapis.com/calendar/v3/calendars/'+calEnc+'/events/'+(ev.recurringEventId||ev.id),{ method:'DELETE' });
-          borrados++;
-        } catch(e2) {}
-      }
-      toast('✅ '+borrados+' evento(s) eliminado(s) de Google Calendar');
+      openModal('🔍 Eventos sin clase en la app', `
+        <div style="font-size:13px;color:var(--t2);margin-bottom:10px">
+          Se encontraron <strong style="color:var(--am)">${huerfanos.length} evento(s)</strong> en Google Calendar que no tienen clase correspondiente en la app:
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px">
+          <button onclick="document.querySelectorAll('.huerf-check').forEach(c=>c.checked=true)" style="background:none;border:none;color:var(--acc);font-size:12px;cursor:pointer">Marcar todos</button>
+          <button onclick="document.querySelectorAll('.huerf-check').forEach(c=>c.checked=false)" style="background:none;border:none;color:var(--t2);font-size:12px;cursor:pointer">Ninguno</button>
+        </div>
+        <div style="max-height:340px;overflow-y:auto;border:1px solid rgba(255,255,255,0.06);border-radius:12px">
+          ${huerfanos.map((e,i) => {
+            const fecha = (e.start?.dateTime||e.start?.date||'').slice(0,10);
+            return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer">
+              <input type="checkbox" class="huerf-check" data-idx="${i}" checked style="width:18px;height:18px;flex-shrink:0">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;color:var(--t1);font-weight:600">${e.summary||'Sin título'}</div>
+                <div style="font-size:11px;color:var(--t2)">${fmtDisp(fecha)}</div>
+              </div>
+            </label>`;
+          }).join('')}
+        </div>
+      `, async () => {
+        const checks = document.querySelectorAll('.huerf-check:checked');
+        const seleccionados = Array.from(checks).map(c => window._huerfanosGCal[parseInt(c.dataset.idx)]);
+        if (!seleccionados.length) { toast('No seleccionaste ningún evento', 'err'); return; }
+        let borrados = 0;
+        for (const ev of seleccionados) {
+          try {
+            await apiFetch('https://www.googleapis.com/calendar/v3/calendars/'+window._huerfanosCalEnc+'/events/'+(ev.recurringEventId||ev.id),{ method:'DELETE' });
+            borrados++;
+          } catch(e2) {}
+        }
+        closeModal();
+        toast('✅ '+borrados+' evento(s) eliminado(s) de Google Calendar');
+      }, '🗑️ Eliminar seleccionados');
     } catch(e) { console.error('limpiarHuerfanos:',e); toast('Error al analizar GCal','err'); }
   }
 
