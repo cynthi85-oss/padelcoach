@@ -315,8 +315,6 @@ h2{font-size:20px;font-weight:800;color:var(--tw);letter-spacing:-.5px}
 .row.tipo-reserva .row-name{color:#aaa !important}
 .row.tipo-reserva .row-time{color:#888 !important;font-weight:500 !important}
 .row.tipo-reserva .row-sub{color:#666 !important}
-.row.archivado{opacity:.5;filter:grayscale(.6)}
-.arch-badge{display:inline-flex;align-items:center;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700;background:rgba(120,120,120,0.15);color:#888;border:1px solid rgba(120,120,120,0.25)}
 /* ── NOTAS ── */
 .nota-item{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.05)}
 .nota-item:last-child{border-bottom:none}
@@ -1480,18 +1478,16 @@ function renderNotasList() {
             ${al ? `<span class="nota-alumno">• ${al.nombre}</span>` : ''}
           </div>
         </div>
-        <button class="nota-del" onclick="formNota(${n.id})" title="Editar" style="color:var(--acc)">✏️</button>
         <button class="nota-del" onclick="eliminarNota(${n.id})" title="Eliminar">🗑</button>
       </div>`;
     }).join('');
 }
 
-function formNota(editId) {
-  const nota = editId ? S.notas.find(n=>n.id===editId) : null;
-  openModal(nota ? '✏️ Editar nota' : '📝 Nueva nota', `
+function formNota() {
+  openModal('📝 Nueva nota', `
     <label class="flbl">Nota o recordatorio *</label>
     <div style="position:relative">
-      <textarea class="finp" id="nn-texto" rows="3" placeholder="Escribí o usá el micrófono 🎙️" style="resize:none;padding-right:48px">${nota?nota.texto:''}</textarea>
+      <textarea class="finp" id="nn-texto" rows="3" placeholder="Escribí o usá el micrófono 🎙️" style="resize:none;padding-right:48px"></textarea>
       <button type="button" id="nn-mic-btn" onclick="toggleVozNota()"
         style="position:absolute;right:8px;top:8px;background:var(--s3);border:1.5px solid var(--s5);
         border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;
@@ -1503,28 +1499,23 @@ function formNota(editId) {
     <label class="flbl">Alumno relacionado (opcional)</label>
     <select class="finp" id="nn-alumno">
       <option value="">— Sin alumno —</option>
-      ${S.alumnos.map(a=>`<option value="${a.id}" ${nota&&nota.alumnoId===a.id?'selected':''}>${a.nombre}</option>`).join('')}
+      ${S.alumnos.map(a=>`<option value="${a.id}">${a.nombre}</option>`).join('')}
     </select>
     <label class="flbl">Fecha recordatorio (opcional)</label>
-    <input class="finp" id="nn-fecha" type="date" value="${nota&&nota.fecha?nota.fecha:''}">
+    <input class="finp" id="nn-fecha" type="date">
     <div style="font-size:12px;color:var(--t2);margin-top:-6px">Si ponés fecha te va a avisar ese día</div>
   `, async () => {
     const texto = document.getElementById('nn-texto').value.trim();
     if (!texto) { toast('Escribí la nota', 'err'); return; }
     const alumnoId = parseInt(document.getElementById('nn-alumno').value) || null;
     const fecha    = document.getElementById('nn-fecha').value || null;
-    if (nota) {
-      await DB.put('notas', { ...nota, texto, alumnoId, fecha });
-      toast('✅ Nota actualizada');
-    } else {
-      await DB.add('notas', { texto, alumnoId, fecha, creada: fmt(new Date()) });
-      toast('📝 Nota guardada');
-      if (fecha) programarNotaNota({ texto, fecha });
-    }
+    await DB.add('notas', { texto, alumnoId, fecha, creada: fmt(new Date()) });
     await loadAll();
     const elNota = document.getElementById('notas-list-tab'); if (elNota) elNota.innerHTML = renderNotasList();
     closeModal();
-  }, nota ? '✅ Guardar cambios' : '💾 Guardar');
+    toast('📝 Nota guardada');
+    if (fecha) programarNotaNota({ texto, fecha });
+  }, '💾 Guardar');
 }
 
 function setModalidadPago(modo) {
@@ -1927,7 +1918,6 @@ async function verAlumno(id) {
       <div class="pcard-actions">
         ${al.tel ? `<button class="btn-icon btn-icon-wa" onclick="abrirWhatsApp(${id})" title="WhatsApp">💬</button>` : ''}
         <button class="btn-icon" onclick="formAlumno(${id})" title="Editar">✏️</button>
-        <button class="btn-icon" onclick="archivarAlumno(${id})" title="${al.archivado?'Reactivar':'Archivar'}">${al.archivado?'♻️':'📦'}</button>
         <button class="btn-icon" onclick="eliminarAlumno(${id})" title="Eliminar">🗑️</button>
       </div>
     </div>
@@ -2428,8 +2418,7 @@ function rPagos(vista = 'alumnos') {
       <div class="card" style="padding:16px">${mesBars}</div>
       <div class="t-sec">Pagos por alumno (total)</div>
       <div class="card-flush">${rankRows}</div>
-      <button class="btn-outline" style="margin-top:12px" onclick="generarResumenMensual()">📊 Generar resumen del mes</button>
-      <button class="btn-outline" style="margin-top:8px;border-color:var(--acc);color:var(--acc)" onclick="replicarMesSiguiente()">📅 Replicar clases al mes siguiente</button>`;
+      <button class="btn-outline" style="margin-top:12px" onclick="generarResumenMensual()">📊 Generar resumen del mes</button>`;
   }
  
   document.getElementById('sec-pagos').innerHTML = `
@@ -2521,22 +2510,12 @@ async function formClaseEdit(id) {
     <input class="finp" id="fc-hora" type="time" value="${cl.hora||'09:00'}">
     <label class="flbl">Duración (min)</label>
     <input class="finp" id="fc-dur" type="number" value="${cl.dur||60}" min="15" step="15">
+    <label class="flbl">Cancha</label>
+    <input class="finp" id="fc-cancha" type="text" value="${cl.cancha||'Cancha 1'}">
     <label class="flbl">Tipo</label>
     <select class="finp" id="fc-tipo" onchange="_onTipoClaseChange()">
       ${['particular','grupal','reserva'].map(t=>`<option value="${t}" ${cl.tipo===t?'selected':''}>${t}</option>`).join('')}
     </select>
-    <div id="fc-cancha-wrap-texto" style="display:${cl.tipo==='reserva'?'none':'block'}">
-      <label class="flbl">Cancha</label>
-      <input class="finp" id="fc-cancha" type="text" value="${cl.cancha||'Cancha 1'}">
-    </div>
-    <div id="fc-cancha-wrap-reserva" style="display:${cl.tipo==='reserva'?'block':'none'}">
-      <label class="flbl">Tipo de cancha</label>
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button type="button" id="fc-cancha-cub" class="rep-btn ${(cl.cancha||'').toLowerCase().includes('descubierta')?'':'activo'}" onclick="setCanchaReserva('cubierta')">🏠 Cubierta</button>
-        <button type="button" id="fc-cancha-desc" class="rep-btn ${(cl.cancha||'').toLowerCase().includes('descubierta')?'activo':''}" onclick="setCanchaReserva('descubierta')">☀️ Descubierta</button>
-      </div>
-      <input type="hidden" id="fc-cancha-tipo" value="${(cl.cancha||'').toLowerCase().includes('descubierta')?'descubierta':'cubierta'}">
-    </div>
     <label class="flbl">Alumnos (hasta 4)</label>
     <div style="margin-bottom:6px;position:relative">
       <input type="hidden" id="fc-a0" value="${ids[0]||''}">
@@ -2553,7 +2532,6 @@ async function formClaseEdit(id) {
     <select class="finp" id="fc-estado">
       ${['confirmada','pendiente','cancelada'].map(s=>`<option value="${s}" ${cl.estado===s?'selected':''}>${s}</option>`).join('')}
     </select>
-    <div id="fc-pago-wrap" style="display:${cl.tipo==='reserva'?'none':'block'}">
     <label class="flbl">Modalidad de pago</label>
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <button type="button" id="fc-pm-diario" class="rep-btn ${(cl.pagoModo||'diario')==='diario'?'activo':''}" onclick="setPagoModo('diario')">💵 Por clase</button>
@@ -2561,7 +2539,6 @@ async function formClaseEdit(id) {
     </div>
     <div style="font-size:11.5px;color:var(--t1);margin-bottom:8px" id="fc-pm-info">${cl.pagoModo==='mensual'?'Te pregunta por la cuota del mes y te insiste cada día hasta que se registre.':'Al terminar cada clase te pregunta si pagó, y te insiste cada día hasta registrar el pago.'}</div>
     <input type="hidden" id="fc-pagomodo" value="${cl.pagoModo||'diario'}">
-    </div>
     <label class="flbl">Notas</label>
     <input class="finp" id="fc-notas" type="text" value="${cl.notas||''}">
   `, async () => {
@@ -2573,9 +2550,7 @@ async function formClaseEdit(id) {
       ...cl, titulo, fecha,
       hora:      document.getElementById('fc-hora').value,
       dur:       parseInt(document.getElementById('fc-dur').value) || 60,
-      cancha:    document.getElementById('fc-tipo').value==='reserva'
-        ? 'Cancha '+(document.getElementById('fc-cancha-tipo')?.value||'cubierta')
-        : document.getElementById('fc-cancha').value || 'Cancha 1',
+      cancha:    document.getElementById('fc-cancha').value || 'Cancha 1',
       tipo:      document.getElementById('fc-tipo').value,
       alumnoId:  alumnosIds[0] || null,
       alumnosIds,
@@ -2589,14 +2564,13 @@ async function formClaseEdit(id) {
     if (repetirMes) {
       const fechaBase = new Date(fecha + 'T12:00:00');
       const y = fechaBase.getFullYear(), m = fechaBase.getMonth();
-      const diaInicio = fechaBase.getDate();
       const ultimoDia = new Date(y, m + 1, 0).getDate();
       const dowBase = fechaBase.getDay();
       const clasesSinBase = { ...claseEditada };
       delete clasesSinBase.id;
-      for (let d = diaInicio + 1; d <= ultimoDia; d++) {
+      for (let d = 1; d <= ultimoDia; d++) {
         const f = new Date(y, m, d);
-        if (f.getDay() === dowBase) {
+        if (f.getDay() === dowBase && fmt(f) !== fecha) {
           const existe = S.clases.find(c => c.fecha === fmt(f) && c.alumnoId === claseEditada.alumnoId && c.id !== cl.id);
           if (!existe) { await DB.add('clases', { ...clasesSinBase, fecha: fmt(f) }); creadas++; }
         }
@@ -2719,60 +2693,6 @@ function recordatoriosManana() {
 }
 window.recordatoriosManana = recordatoriosManana;
 
-// Esta función se insertará en el HTML
-async function replicarMesSiguiente() {
-  const hoy    = new Date();
-  const mesAct = fmt(hoy).slice(0,7);
-  const yAct   = hoy.getFullYear();
-  const mAct   = hoy.getMonth();
-  const ySig   = mAct === 11 ? yAct + 1 : yAct;
-  const mSig   = mAct === 11 ? 0 : mAct + 1;
-  const MESES  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const DIAS   = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-
-  const clasesActuales = S.clases.filter(c =>
-    c.fecha.slice(0,7) === mesAct && c.estado !== 'cancelada' && !c.gcal_imported
-  );
-  if (!clasesActuales.length) { toast('No hay clases este mes para replicar', 'err'); return; }
-
-  const gruposMap = {};
-  clasesActuales.forEach(cl => {
-    const dow = new Date(cl.fecha + 'T12:00:00').getDay();
-    const key = cl.titulo + '|' + cl.hora + '|' + dow;
-    if (!gruposMap[key]) gruposMap[key] = { ...cl, dow, clases: [] };
-    gruposMap[key].clases.push(cl);
-  });
-
-  const ultimoDiaSig = new Date(ySig, mSig + 1, 0).getDate();
-  const preview = Object.values(gruposMap).map(g => {
-    const fechasSig = [];
-    for (let d = 1; d <= ultimoDiaSig; d++) {
-      const f = new Date(ySig, mSig, d);
-      if (f.getDay() === g.dow) fechasSig.push(f);
-    }
-    return { ...g, fechasSig };
-  });
-  const totalNuevas = preview.reduce((s,g) => s + g.fechasSig.length, 0);
-
-  openModal('Replicar clases — ' + MESES[mSig], '<div style="font-size:13px;color:var(--t2);margin-bottom:12px">Se van a crear <strong style="color:var(--acc)">' + totalNuevas + ' clases</strong> en ' + MESES[mSig] + ' ' + ySig + ':</div><div style="max-height:260px;overflow-y:auto">' +
-    preview.map(g => '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06)"><div style="font-size:13px;font-weight:600">' + g.titulo + ' · ' + g.hora + 'hs · ' + DIAS[g.dow] + '</div><div style="font-size:11px;color:var(--t2);margin-top:2px">' + g.fechasSig.map(f=>f.getDate()+'/'+(f.getMonth()+1)).join(', ') + ' (' + g.fechasSig.length + ' clases)</div></div>').join('') +
-    '</div><div style="font-size:12px;color:var(--am);margin-top:10px">No se duplican clases que ya existan ese día y hora</div>',
-    async () => {
-      let creadas = 0;
-      for (const g of preview) {
-        for (const fecha of g.fechasSig) {
-          const fechaStr = fmt(fecha);
-          if (S.clases.some(c => c.fecha===fechaStr && c.titulo===g.titulo && c.hora===g.hora)) continue;
-          await DB.add('clases', { titulo:g.titulo, fecha:fechaStr, hora:g.hora, dur:g.dur||60, cancha:g.cancha||'Cancha 1', tipo:g.tipo||'particular', alumnoId:g.alumnoId||null, alumnosIds:g.alumnosIds||[], estado:'confirmada', notas:'', modalidad_pago:g.modalidad_pago||'mensual', pagoModo:g.pagoModo||'mensual' });
-          creadas++;
-        }
-      }
-      await loadAll(); closeModal(); haptic('success');
-      toast('✅ ' + creadas + ' clases creadas para ' + MESES[mSig]);
-      if (GCAL.isConnected()) GCAL.syncManual();
-    }, '✅ Crear ' + totalNuevas + ' clases');
-}
-
 function generarResumenMensual() {
   const hoy = new Date();
   const mesActual = fmt(hoy).slice(0,7);
@@ -2849,29 +2769,7 @@ function exportarResumenPDF() {
 }
 
 async function eliminarAlumno(id) {
-  const al = S.alumnos.find(a => a.id === id);
-  if (!al) return;
-  openModal('🗑️ Eliminar alumno', `
-    <div style="font-size:13px;color:var(--t2);margin-bottom:16px;line-height:1.6">
-      ¿Qué querés hacer con <strong>${al.nombre}</strong>?
-    </div>
-    <button class="btn-warning" style="margin-bottom:8px" onclick="archivarAlumno(${id})">
-      📦 Archivar — conservar historial y datos
-    </button>
-    <div style="font-size:11px;color:var(--t2);margin:-4px 0 12px;padding:0 4px">
-      El alumno queda guardado pero oculto en la lista activa
-    </div>
-    <button class="btn-danger" onclick="confirmarEliminarAlumno(${id})">
-      🗑️ Eliminar definitivamente
-    </button>
-    <div style="font-size:11px;color:var(--t2);margin-top:4px;padding:0 4px">
-      Se borran todos sus datos, clases y pagos
-    </div>
-  `, null);
-}
-
-async function confirmarEliminarAlumno(id) {
-  const ok = await confirm('¿Confirmar eliminación? Esta acción no se puede deshacer.');
+  const ok = await confirm('¿Eliminar este alumno? Se borrarán también sus pagos y notas.');
   if (!ok) return;
   await DB.del('alumnos', id);
   const ps = S.pagos.filter(p => p.alumnoId === id);
@@ -2879,15 +2777,6 @@ async function confirmarEliminarAlumno(id) {
   const ns = S.notas.filter(n => n.alumnoId === id);
   for (const n of ns) await DB.del('notas', n.id);
   await loadAll(); closeModal(); rAlumnos(); toast('Alumno eliminado');
-}
-
-async function archivarAlumno(id) {
-  const al = S.alumnos.find(a => a.id === id);
-  if (!al) return;
-  const yaArchivado = al.archivado;
-  await DB.put('alumnos', { ...al, archivado: !yaArchivado });
-  await loadAll(); closeModal(); rAlumnos();
-  toast(yaArchivado ? '♻️ Alumno reactivado' : '📦 Alumno archivado');
 }
 async function modalCambioClase(id) {
   const cl = S.clases.find(c => c.id === id);
@@ -3547,16 +3436,15 @@ function setRepetir(modo) {
       const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
       const fechaBase = new Date(fechaVal + 'T12:00:00');
       const y = fechaBase.getFullYear(), m = fechaBase.getMonth();
-      const diaInicio = fechaBase.getDate();
       const ultimoDia = new Date(y, m + 1, 0).getDate();
       const dowBase = fechaBase.getDay();
       const fechas = [];
-      for (let d = diaInicio; d <= ultimoDia; d++) {
+      for (let d = 1; d <= ultimoDia; d++) {
         const f = new Date(y, m, d);
         if (f.getDay() === dowBase) fechas.push(f);
       }
       const semanas = fechas.length;
-      const btnMesLabel = semanas === 5 ? '📅 5 semanas' : semanas === 1 ? '📅 Solo esta fecha' : '📅 ' + semanas + ' clases';
+      const btnMesLabel = semanas === 5 ? '📅 5 semanas' : '📅 Todo el mes (' + semanas + ')';
       btnMes.textContent = btnMesLabel;
       info.style.display = 'block';
       info.innerHTML = '📅 Clases los ' + DIAS[dowBase] + ': ' +
@@ -3746,10 +3634,7 @@ function _getAlumnosIds() {
 }
 function _onTipoClaseChange() {
   const tipo = document.getElementById('fc-tipo').value;
-  const grupal   = tipo === 'grupal';
-  const reserva  = tipo === 'reserva';
-
-  // Slots de alumnos
+  const grupal = tipo === 'grupal';
   [1,2,3].forEach(i => {
     const w = document.getElementById('fc-aw'+i);
     if (!w) return;
@@ -3758,31 +3643,6 @@ function _onTipoClaseChange() {
   });
   const btn = document.getElementById('fc-addal');
   if (btn) btn.style.display = grupal ? 'none' : '';
-
-  // Cancha: texto para particular/grupal, botones para reserva
-  const wTexto   = document.getElementById('fc-cancha-wrap-texto');
-  const wReserva = document.getElementById('fc-cancha-wrap-reserva');
-  if (wTexto)   wTexto.style.display   = reserva ? 'none' : 'block';
-  if (wReserva) wReserva.style.display = reserva ? 'block' : 'none';
-
-  // Modalidad de pago: ocultar para reserva (ambos formularios)
-  ['fc-pago-wrap','fc-pago-wrap-new'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = reserva ? 'none' : 'block';
-  });
-}
-
-function setCanchaReserva(tipo) {
-  const btnC = document.getElementById('fc-cancha-cub');
-  const btnD = document.getElementById('fc-cancha-desc');
-  const inp  = document.getElementById('fc-cancha-tipo');
-  if (!btnC || !btnD || !inp) return;
-  inp.value = tipo;
-  if (tipo === 'cubierta') {
-    btnC.classList.add('activo'); btnD.classList.remove('activo');
-  } else {
-    btnD.classList.add('activo'); btnC.classList.remove('activo');
-  }
 }
 
 function formClase(alumnoId) {
@@ -3797,24 +3657,14 @@ function formClase(alumnoId) {
     <input class="finp" id="fc-hora" type="time" value="09:00">
     <label class="flbl">Duración (min)</label>
     <input class="finp" id="fc-dur" type="number" value="60" min="15" step="15">
+    <label class="flbl">Cancha</label>
+    <input class="finp" id="fc-cancha" type="text" value="Cancha 1" placeholder="Ej: Cancha 1">
     <label class="flbl">Tipo</label>
     <select class="finp" id="fc-tipo" onchange="_onTipoClaseChange()">
       <option value="particular">Particular</option>
       <option value="grupal">Grupal</option>
       <option value="reserva">Reserva</option>
     </select>
-    <div id="fc-cancha-wrap-texto" style="display:block">
-      <label class="flbl">Cancha</label>
-      <input class="finp" id="fc-cancha" type="text" value="Cancha 1" placeholder="Ej: Cancha 1">
-    </div>
-    <div id="fc-cancha-wrap-reserva" style="display:none">
-      <label class="flbl">Tipo de cancha</label>
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button type="button" id="fc-cancha-cub" class="rep-btn activo" onclick="setCanchaReserva('cubierta')">🏠 Cubierta</button>
-        <button type="button" id="fc-cancha-desc" class="rep-btn" onclick="setCanchaReserva('descubierta')">☀️ Descubierta</button>
-      </div>
-      <input type="hidden" id="fc-cancha-tipo" value="cubierta">
-    </div>
     <label class="flbl">Alumnos (hasta 4)</label>
     <div style="margin-bottom:6px;position:relative">
       <input type="hidden" id="fc-a0" value="${alumnoInicial||''}">
@@ -3833,7 +3683,6 @@ function formClase(alumnoId) {
       <option value="pendiente">Pendiente</option>
       <option value="cancelada">Cancelada</option>
     </select>
-    <div id="fc-pago-wrap-new">
     <label class="flbl">Modalidad de pago</label>
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <button type="button" id="fc-pm-diario" class="rep-btn activo" onclick="setPagoModo('diario')">💵 Por clase</button>
@@ -3841,7 +3690,6 @@ function formClase(alumnoId) {
     </div>
     <div style="font-size:11.5px;color:var(--t1);margin-bottom:8px" id="fc-pm-info">Al terminar cada clase te pregunta si pagó, y te insiste cada día hasta registrar el pago.</div>
     <input type="hidden" id="fc-pagomodo" value="diario">
-    </div>
     <label class="flbl">Repetir clase</label>
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <button type="button" id="fc-rep-no" class="rep-btn activo" onclick="setRepetir('no')">
@@ -3864,9 +3712,7 @@ function formClase(alumnoId) {
       titulo, fecha,
       hora:      document.getElementById('fc-hora').value,
       dur:       parseInt(document.getElementById('fc-dur').value) || 60,
-      cancha:    document.getElementById('fc-tipo').value==='reserva'
-        ? 'Cancha '+(document.getElementById('fc-cancha-tipo')?.value||'cubierta')
-        : document.getElementById('fc-cancha').value || 'Cancha 1',
+      cancha:    document.getElementById('fc-cancha').value || 'Cancha 1',
       tipo:      document.getElementById('fc-tipo').value,
       alumnoId:  alumnosIds[0] || null,
       alumnosIds,
@@ -3880,12 +3726,11 @@ function formClase(alumnoId) {
     if (repetirMes) {
       const fechaBase = new Date(fecha + 'T12:00:00');
       const y = fechaBase.getFullYear(), m = fechaBase.getMonth();
-      const diaInicio = fechaBase.getDate(); // empezar desde la fecha elegida
       const ultimoDia = new Date(y, m + 1, 0).getDate();
       const dowBase = fechaBase.getDay();
-      for (let d = diaInicio + 1; d <= ultimoDia; d++) {
+      for (let d = 1; d <= ultimoDia; d++) {
         const f = new Date(y, m, d);
-        if (f.getDay() === dowBase) {
+        if (f.getDay() === dowBase && fmt(f) !== fecha) {
           await DB.add('clases', { ...claseBase, fecha: fmt(f) });
           creadas++;
         }
@@ -3896,13 +3741,13 @@ function formClase(alumnoId) {
     rClases(fecha);
     if (GCAL.isConnected()) {
       if (repetirMes) {
+        // Recolectar todas las fechas creadas este mes para ese día
         const fechaBase2 = new Date(fecha + 'T12:00:00');
         const y2 = fechaBase2.getFullYear(), m2 = fechaBase2.getMonth();
-        const diaInicio2 = fechaBase2.getDate();
         const dow2 = fechaBase2.getDay();
         const todasFechas = [];
         const ultimoDia2 = new Date(y2, m2 + 1, 0).getDate();
-        for (let d2 = diaInicio2; d2 <= ultimoDia2; d2++) {
+        for (let d2 = 1; d2 <= ultimoDia2; d2++) {
           const f2 = new Date(y2, m2, d2);
           if (f2.getDay() === dow2) todasFechas.push(fmt(f2));
         }
@@ -5037,62 +4882,47 @@ const GCAL = (() => {
       });
 
       // ── 1. App → GCal: crear/actualizar clases de la app ──────────
-      // Construir índice por título+fecha para detectar duplicados
-      const gcalByTituloFecha = {};
-      events.forEach(ev => {
-        const fecha = (ev.start?.dateTime || ev.start?.date || '').slice(0,10);
-        const tit   = (ev.summary || '').toLowerCase().trim();
-        const key   = tit + '|' + fecha;
-        if (!gcalByTituloFecha[key]) gcalByTituloFecha[key] = ev;
-      });
-
       let pushed = 0;
       for (const cl of S.clases) {
-        if (cl.gcal_imported) continue;
+        if (cl.gcal_imported) continue; // estas las maneja GCal
         const event = buildEvent(cl);
-        const appTitle = ('🎾 ' + cl.titulo).toLowerCase().trim();
-        const keyTF    = appTitle + '|' + cl.fecha;
-
-        // Buscar evento existente: primero por tag, luego por título+fecha
-        let existing = tagMap[String(cl.id)];
-        if (!existing && cl.gcal_event_id) {
-          existing = gcalById[cl.gcal_event_id];
-        }
-        if (!existing) {
-          existing = gcalByTituloFecha[keyTF]; // detecta recurrentes sin tag
-        }
-
+        const existing = tagMap[String(cl.id)];
         if (existing) {
+          // Verificar si hay diferencias antes de actualizar (evita escrituras innecesarias)
           const gcalStart = existing.start?.dateTime?.slice(0,16);
-          const appStart  = cl.fecha + 'T' + cl.hora;
+          const appStart  = `${cl.fecha}T${cl.hora}`;
           const gcalTitle = existing.summary || '';
-          const appTitleFmt = '🎾 ' + cl.titulo;
-          if (gcalStart !== appStart || gcalTitle !== appTitleFmt) {
-            await apiFetch('https://www.googleapis.com/calendar/v3/calendars/'+calEnc+'/events/'+existing.id,
+          const appTitle  = `🎾 ${cl.titulo}`;
+          if (gcalStart !== appStart || gcalTitle !== appTitle) {
+            await apiFetch(`https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events/${existing.id}`,
               { method: 'PUT', body: JSON.stringify(event) });
             pushed++;
           }
+          // Guardar gcal_event_id en la clase para borrado rápido
           if (!cl.gcal_event_id) {
             await DB.put('clases', { ...cl, gcal_event_id: existing.id });
           }
         } else {
-          // Solo crear si NO existe ya por título+fecha (doble chequeo anti-duplicados)
-          if (!gcalByTituloFecha[keyTF]) {
-            const created = await apiFetch('https://www.googleapis.com/calendar/v3/calendars/'+calEnc+'/events',
-              { method: 'POST', body: JSON.stringify(event) });
-            if (created?.id) {
-              await DB.put('clases', { ...cl, gcal_event_id: created.id });
-              gcalByTituloFecha[keyTF] = created; // registrar para evitar duplicar en esta misma sesión
-            }
-            pushed++;
-          }
+          // Crear en GCal y guardar el gcal_event_id en la clase
+          const created = await apiFetch(`https://www.googleapis.com/calendar/v3/calendars/${calEnc}/events`,
+            { method: 'POST', body: JSON.stringify(event) });
+          await DB.put('clases', { ...cl, gcal_event_id: created.id });
+          pushed++;
         }
       }
 
-      // ── 2. GCal → App: eliminados en GCal ────────────────────────────
-      // DESHABILITADO: causaba borrado de clases válidas cuando GCal no cargaba bien
-      // La app es la fuente de verdad para borrado.
-      const deletedFromGcal = 0;
+      // ── 2. GCal → App: detectar eventos eliminados en GCal ────────
+      // Si una clase tiene gcal_event_id pero ese evento ya no existe en GCal → eliminar en la app
+      let deletedFromGcal = 0;
+      for (const cl of [...S.clases]) {
+        const gcalEvId = cl.gcal_event_id || (cl.gcal_imported ? cl.gcal_imported : null);
+        if (!gcalEvId) continue;
+        if (!gcalById[gcalEvId]) {
+          // El evento fue borrado en GCal → borrar en la app
+          await DB.del('clases', cl.id);
+          deletedFromGcal++;
+        }
+      }
 
       // ── 2b. GCal → App: actualizar clases de la app modificadas en GCal ──
       // Si el evento en GCal tiene distinta hora o título que la clase en la app → actualizar la app
@@ -5127,10 +4957,39 @@ const GCAL = (() => {
         }
       }
 
-      // ── 3. GCal → App: importación DESHABILITADA (causaba duplicados) ────
-      // La app es la fuente de verdad. Los eventos se crean SOLO desde la app.
-      // Si querés importar un evento de GCal, usá el botón "Importar desde GCal".
-      const imported = 0;
+      // ── 3. GCal → App: importar eventos nuevos creados en GCal ────
+      // Eventos sin tag [padelcoach:N] que no fueron importados antes
+      const importadosIds = new Set(
+        S.clases.filter(c => c.gcal_imported).map(c => c.gcal_imported)
+      );
+      const nuevosEnGcal = events.filter(ev => {
+        if (importadosIds.has(ev.id)) return false;
+        const desc = ev.description || '';
+        if (desc.includes(`[${TAG}:`)) return false; // ya es de la app
+        if (ev.status === 'cancelled') return false;
+        return true;
+      });
+
+      let imported = 0;
+      for (const ev of nuevosEnGcal) {
+        if (!ev.start?.dateTime && !ev.start?.date) continue;
+        const startDt = new Date(ev.start.dateTime || ev.start.date + 'T00:00:00');
+        const endDt   = new Date(ev.end?.dateTime  || ev.end?.date   + 'T00:00:00' || startDt);
+        const dur     = Math.round((endDt - startDt) / 60000) || 60;
+        const pad     = n => String(n).padStart(2,'0');
+        const fecha   = `${startDt.getFullYear()}-${pad(startDt.getMonth()+1)}-${pad(startDt.getDate())}`;
+        const hora    = `${pad(startDt.getHours())}:${pad(startDt.getMinutes())}`;
+        const titulo  = (ev.summary || 'Clase importada').replace(/^🎾\s*/, '');
+        await DB.add('clases', {
+          titulo, fecha, hora, dur,
+          cancha: ev.location || 'Cancha 1',
+          tipo: 'clase', alumnoId: null, estado: 'confirmada',
+          notas: (ev.description || '').trim(),
+          gcal_imported: ev.id,
+          gcal_event_id: ev.id
+        });
+        imported++;
+      }
 
       // ── 4. Recargar si hubo cambios ───────────────────────────────
       if (deletedFromGcal > 0 || imported > 0 || pushed > 0 || updatedFromGcal > 0) {
@@ -5282,71 +5141,6 @@ const GCAL = (() => {
     } catch(e) {
       console.error('actualizarColorClase:', e);
     }
-  }
-
-  // ── limpiarHuerfanos: borra eventos GCal sin clase en la app ──────
-  async function limpiarHuerfanos() {
-    try {
-      await ensureToken();
-      if (!accessToken) { toast('Primero conectá Google Calendar', 'err'); return; }
-      if (!dedicatedCalId) await ensureDedicatedCalendar();
-      if (!dedicatedCalId) { toast('No se encontró el calendario PadelCoach', 'err'); return; }
-      toast('🔍 Analizando Google Calendar...');
-      const calEnc    = encodeURIComponent(dedicatedCalId);
-      const allEvents = await fetchExistingEvents();
-
-      // Construir sets de claves de la app
-      const idsApp     = new Set(S.clases.map(c => String(c.id)));
-      // Normalizar: sacar emoji 🎾, minúsculas, trim
-      const norm = s => (s||'').replace(/🎾\s*/g,'').toLowerCase().trim();
-      // Claves por fecha+titulo (con y sin emoji)
-      const clavesApp = new Set();
-      S.clases.forEach(c => {
-        clavesApp.add(norm(c.titulo) + '|' + c.fecha);
-        clavesApp.add(norm('🎾 '+c.titulo) + '|' + c.fecha);
-      });
-
-      const huerfanos = [];
-      const vistos    = new Set();
-
-      for (const ev of allEvents) {
-        const fecha   = (ev.start?.dateTime||ev.start?.date||'').slice(0,10);
-        if (!fecha) continue;
-        const match   = (ev.description||'').match(/\[padelcoach:(\d+)\]/);
-
-        // Método 1: tiene tag pero clase no existe en la app
-        if (match) {
-          if (!idsApp.has(match[1])) {
-            const baseId = ev.recurringEventId || ev.id;
-            if (!vistos.has(baseId)) { vistos.add(baseId); huerfanos.push(ev); }
-          }
-          continue; // si tiene tag válido, no chequear por título
-        }
-
-        // Método 2: sin tag — verificar por título normalizado + fecha
-        const titNorm = norm(ev.summary||'');
-        if (titNorm && !clavesApp.has(titNorm+'|'+fecha)) {
-          const baseId = ev.recurringEventId || ev.id;
-          if (!vistos.has(baseId)) { vistos.add(baseId); huerfanos.push(ev); }
-        }
-      }
-
-      console.log('GCal eventos:', allEvents.length, '| App clases:', S.clases.length, '| Huerfanos:', huerfanos.length);
-      if (!huerfanos.length) { toast('✅ Todo en orden — '+allEvents.length+' eventos GCal, todos tienen clase en la app'); return; }
-
-      const lista = huerfanos.map(e=>'• '+(e.summary||'Sin titulo')+' ('+(e.start?.dateTime||e.start?.date||'').slice(0,10)+')').join(', ');
-      const ok = await confirm(huerfanos.length+' evento(s) en GCal sin clase en la app: '+lista+'. Eliminarlos?');
-
-
-      let borrados = 0;
-      for (const ev of huerfanos) {
-        try {
-          await apiFetch('https://www.googleapis.com/calendar/v3/calendars/'+calEnc+'/events/'+(ev.recurringEventId||ev.id),{ method:'DELETE' });
-          borrados++;
-        } catch(e2) {}
-      }
-      toast('✅ '+borrados+' evento(s) eliminado(s) de Google Calendar');
-    } catch(e) { console.error('limpiarHuerfanos:',e); toast('Error al analizar GCal','err'); }
   }
 
   // ── limpiarDuplicados: borra eventos duplicados del mes en GCal ───
@@ -5532,9 +5326,6 @@ const GCAL = (() => {
       </button>
       <button class="btn-sync" style="background:rgba(255,61,107,0.12);color:#ff3d6b;border-color:rgba(255,61,107,0.3);margin-top:6px" onclick="GCAL.limpiarDuplicados()">
         🧹 Limpiar duplicados del mes
-      </button>
-      <button class="btn-sync" style="background:rgba(255,170,0,0.12);color:#ffaa00;border-color:rgba(255,170,0,0.3);margin-top:6px" onclick="GCAL.limpiarHuerfanos()">
-        🔍 Borrar eventos sin clase en la app
       </button>`;
   }
 
@@ -5583,7 +5374,6 @@ const GCAL = (() => {
     actualizarColorClase,
     deleteSerieDelMes,
     limpiarDuplicados,
-    limpiarHuerfanos,
     deleteOne,
     importFromGCal: () => syncBidireccional(false),
     syncManual() { setLoading(true); syncBidireccional(true).finally(() => setLoading(false)); },
