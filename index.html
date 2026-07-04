@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#060912">
-<meta name="version" content="20260704">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PadelConEmmanuel</title>
@@ -5335,145 +5334,21 @@ const GCAL = (() => {
       console.log('GCal eventos:', allEvents.length, '| App clases:', S.clases.length, '| Huerfanos:', huerfanos.length);
       if (!huerfanos.length) { toast('✅ Todo en orden — '+allEvents.length+' eventos GCal, todos tienen clase en la app'); return; }
 
-      // Ordenar por fecha
-      huerfanos.sort((a,b) => {
-        const fa = a.start?.dateTime||a.start?.date||'';
-        const fb = b.start?.dateTime||b.start?.date||'';
-        return fa.localeCompare(fb);
-      });
+      const lista = huerfanos.map(e=>'• '+(e.summary||'Sin titulo')+' ('+(e.start?.dateTime||e.start?.date||'').slice(0,10)+')').join(', ');
+      const ok = await confirm(huerfanos.length+' evento(s) en GCal sin clase en la app: '+lista+'. Eliminarlos?');
 
-      window._huerfanosGCal = huerfanos;
-      window._huerfanosCalEnc = calEnc;
 
-      openModal('🔍 Eventos sin clase en la app', `
-        <div style="font-size:13px;color:var(--t2);margin-bottom:10px">
-          Se encontraron <strong style="color:var(--am)">${huerfanos.length} evento(s)</strong> en Google Calendar que no tienen clase correspondiente en la app:
-        </div>
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px">
-          <button onclick="document.querySelectorAll('.huerf-check').forEach(c=>c.checked=true)" style="background:none;border:none;color:var(--acc);font-size:12px;cursor:pointer">Marcar todos</button>
-          <button onclick="document.querySelectorAll('.huerf-check').forEach(c=>c.checked=false)" style="background:none;border:none;color:var(--t2);font-size:12px;cursor:pointer">Ninguno</button>
-        </div>
-        <div style="max-height:340px;overflow-y:auto;border:1px solid rgba(255,255,255,0.06);border-radius:12px">
-          ${huerfanos.map((e,i) => {
-            const fecha = (e.start?.dateTime||e.start?.date||'').slice(0,10);
-            return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer">
-              <input type="checkbox" class="huerf-check" data-idx="${i}" checked style="width:18px;height:18px;flex-shrink:0">
-              <div style="flex:1;min-width:0">
-                <div style="font-size:13px;color:var(--t1);font-weight:600">${e.summary||'Sin título'}</div>
-                <div style="font-size:11px;color:var(--t2)">${fmtDisp(fecha)}</div>
-              </div>
-            </label>`;
-          }).join('')}
-        </div>
-      `, async () => {
-        const checks = document.querySelectorAll('.huerf-check:checked');
-        const seleccionados = Array.from(checks).map(c => window._huerfanosGCal[parseInt(c.dataset.idx)]);
-        if (!seleccionados.length) { toast('No seleccionaste ningún evento', 'err'); return; }
-        let borrados = 0;
-        for (const ev of seleccionados) {
-          try {
-            await apiFetch('https://www.googleapis.com/calendar/v3/calendars/'+window._huerfanosCalEnc+'/events/'+(ev.recurringEventId||ev.id),{ method:'DELETE' });
-            borrados++;
-          } catch(e2) {}
-        }
-        closeModal();
-        toast('✅ '+borrados+' evento(s) eliminado(s) de Google Calendar');
-      }, '🗑️ Eliminar seleccionados');
+      let borrados = 0;
+      for (const ev of huerfanos) {
+        try {
+          await apiFetch('https://www.googleapis.com/calendar/v3/calendars/'+calEnc+'/events/'+(ev.recurringEventId||ev.id),{ method:'DELETE' });
+          borrados++;
+        } catch(e2) {}
+      }
+      toast('✅ '+borrados+' evento(s) eliminado(s) de Google Calendar');
     } catch(e) { console.error('limpiarHuerfanos:',e); toast('Error al analizar GCal','err'); }
   }
 
-  // ── restaurarDesdeGCal: importa eventos de GCal que no están en la app ──
-  async function restaurarDesdeGCal() {
-    try {
-      await ensureToken();
-      if (!accessToken) { toast('Primero conectá Google Calendar', 'err'); return; }
-      if (!dedicatedCalId) await ensureDedicatedCalendar();
-      toast('⬇️ Leyendo Google Calendar...');
-      const allEvents = await fetchExistingEvents();
-
-      // Solo eventos del calendario PadelCoach que NO están ya en la app
-      const titsFechasApp = new Set(
-        S.clases.map(c => (c.titulo||'').toLowerCase().trim() + '|' + c.fecha)
-      );
-      const gcalIdsApp = new Set(
-        S.clases.map(c => c.gcal_event_id || c.gcal_imported).filter(Boolean)
-      );
-
-      const noEnApp = allEvents.filter(ev => {
-        if (ev.status === 'cancelled') return false;
-        if (gcalIdsApp.has(ev.id)) return false;
-        const fecha = (ev.start?.dateTime||ev.start?.date||'').slice(0,10);
-        const tit   = (ev.summary||'').replace(/^🎾\s*/,'').toLowerCase().trim();
-        if (titsFechasApp.has(tit+'|'+fecha)) return false;
-        return true;
-      });
-
-      if (!noEnApp.length) { toast('✅ Todas las clases de GCal ya están en la app'); return; }
-
-      // Ordenar por fecha
-      noEnApp.sort((a,b)=>(a.start?.dateTime||a.start?.date||'').localeCompare(b.start?.dateTime||b.start?.date||''));
-
-      window._restaurarEventos = noEnApp;
-
-      openModal('⬇️ Restaurar desde Google Calendar', `
-        <div style="font-size:13px;color:var(--t2);margin-bottom:10px">
-          Se encontraron <strong style="color:#64c8ff">${noEnApp.length} evento(s)</strong> en GCal que no están en la app. Seleccioná cuáles importar:
-        </div>
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px">
-          <button onclick="document.querySelectorAll('.rest-check').forEach(c=>c.checked=true)" style="background:none;border:none;color:var(--acc);font-size:12px;cursor:pointer">Todos</button>
-          <button onclick="document.querySelectorAll('.rest-check').forEach(c=>c.checked=false)" style="background:none;border:none;color:var(--t2);font-size:12px;cursor:pointer">Ninguno</button>
-        </div>
-        <div style="max-height:340px;overflow-y:auto;border:1px solid rgba(255,255,255,0.06);border-radius:12px">
-          ${noEnApp.map((e,i) => {
-            const fecha = (e.start?.dateTime||e.start?.date||'').slice(0,10);
-            const startDt = new Date(e.start?.dateTime||fecha+'T00:00:00');
-            const endDt   = new Date(e.end?.dateTime||fecha+'T01:00:00');
-            const pad = n=>String(n).padStart(2,'0');
-            const hora = pad(startDt.getHours())+':'+pad(startDt.getMinutes());
-            const dur  = Math.round((endDt-startDt)/60000)||60;
-            return '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer">' +
-              '<input type="checkbox" class="rest-check" data-idx="'+i+'" checked style="width:18px;height:18px;flex-shrink:0">' +
-              '<div style="flex:1;min-width:0">' +
-              '<div style="font-size:13px;color:var(--t1);font-weight:600">'+(e.summary||'Sin título').replace(/^🎾\s*/,'')+'</div>' +
-              '<div style="font-size:11px;color:var(--t2)">'+fmtDisp(fecha)+' · '+hora+'hs · '+dur+'min'+(e.location?' · '+e.location:'')+'</div>' +
-              '</div></label>';
-          }).join('')}
-        </div>
-      `, async () => {
-        const checks = document.querySelectorAll('.rest-check:checked');
-        const seleccionados = Array.from(checks).map(c => window._restaurarEventos[parseInt(c.dataset.idx)]);
-        if (!seleccionados.length) { toast('No seleccionaste ninguno', 'err'); return; }
-        let creadas = 0;
-        for (const ev of seleccionados) {
-          const fecha   = (ev.start?.dateTime||ev.start?.date||'').slice(0,10);
-          const startDt = new Date(ev.start?.dateTime||fecha+'T00:00:00');
-          const endDt   = new Date(ev.end?.dateTime||fecha+'T01:00:00');
-          const pad     = n=>String(n).padStart(2,'0');
-          const hora    = pad(startDt.getHours())+':'+pad(startDt.getMinutes());
-          const dur     = Math.round((endDt-startDt)/60000)||60;
-          const titulo  = (ev.summary||'Clase').replace(/^🎾\s*/,'');
-          await DB.add('clases', {
-            titulo, fecha, hora, dur,
-            cancha:   ev.location || 'Cancha 1',
-            tipo:     'particular',
-            alumnoId: null,
-            alumnosIds: [],
-            estado:   'confirmada',
-            notas:    (ev.description||'').replace(/\[padelcoach:\d+\]/g,'').trim(),
-            gcal_imported: ev.id,
-            gcal_event_id: ev.id,
-          });
-          creadas++;
-        }
-        await loadAll();
-        closeModal();
-        haptic('success');
-        toast('✅ '+creadas+' clase(s) restaurada(s) desde Google Calendar');
-      }, '⬇️ Importar seleccionados');
-    } catch(e) { console.error('restaurarDesdeGCal:',e); toast('Error al restaurar','err'); }
-  }
-
-    limpiarHuerfanos,
   // ── limpiarDuplicados: borra eventos duplicados del mes en GCal ───
   async function limpiarDuplicados() {
     try {
@@ -5660,9 +5535,6 @@ const GCAL = (() => {
       </button>
       <button class="btn-sync" style="background:rgba(255,170,0,0.12);color:#ffaa00;border-color:rgba(255,170,0,0.3);margin-top:6px" onclick="GCAL.limpiarHuerfanos()">
         🔍 Borrar eventos sin clase en la app
-      </button>
-      <button class="btn-sync" style="background:rgba(100,200,255,0.12);color:#64c8ff;border-color:rgba(100,200,255,0.3);margin-top:6px" onclick="GCAL.restaurarDesdeGCal()">
-        ⬇️ Restaurar clases desde Google Calendar
       </button>`;
   }
 
@@ -5711,6 +5583,7 @@ const GCAL = (() => {
     actualizarColorClase,
     deleteSerieDelMes,
     limpiarDuplicados,
+    limpiarHuerfanos,
     deleteOne,
     importFromGCal: () => syncBidireccional(false),
     syncManual() { setLoading(true); syncBidireccional(true).finally(() => setLoading(false)); },
