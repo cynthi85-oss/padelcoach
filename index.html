@@ -5390,16 +5390,23 @@ const GCAL = (() => {
   // ── restaurarDesdeGCal: importa eventos de GCal que no están en la app ──
   function _rcAll(v){document.querySelectorAll(".rc").forEach(c=>c.checked=v);}
   async function restaurarDesdeGCal() {
+    toast('⬇️ Conectando...');
     try {
-      toast('⬇️ Iniciando...');
-      await ensureToken();
-      if (!accessToken) { toast('Sin token — reconectá Google Calendar', 'err'); return; }
-      toast('⬇️ Buscando calendario...');
-      if (!dedicatedCalId) await ensureDedicatedCalendar();
-      if (!dedicatedCalId) { toast('No se encontró el calendario PadelCoach', 'err'); return; }
-      toast('⬇️ Leyendo eventos...');
-      const allEvents = await fetchExistingEvents();
-      toast('⬇️ '+allEvents.length+' eventos encontrados...');
+      // Verificar token
+      if (!accessToken) {
+        try { await ensureToken(); } catch(te) {}
+      }
+      if (!accessToken) { toast('Reconectá Google Calendar primero', 'err'); return; }
+      // Verificar calendario
+      if (!dedicatedCalId) {
+        try { await ensureDedicatedCalendar(); } catch(ce) {}
+      }
+      if (!dedicatedCalId) { toast('No se encontró el calendario', 'err'); return; }
+      toast('⬇️ Leyendo eventos de GCal...');
+      let allEvents = [];
+      try { allEvents = await fetchExistingEvents(); } catch(fe) { toast('Error al leer GCal: '+fe.message,'err'); return; }
+      if (!allEvents.length) { toast('No hay eventos en el calendario GCal'); return; }
+      toast('✅ '+allEvents.length+' eventos leídos');
       const gcalIdsApp = new Set(S.clases.map(c=>c.gcal_event_id||c.gcal_imported).filter(Boolean));
       const titsFechas = new Set(S.clases.map(c=>(c.titulo||'').toLowerCase().trim()+'|'+c.fecha));
       const noEnApp = allEvents.filter(ev=>{
