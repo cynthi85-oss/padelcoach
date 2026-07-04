@@ -5391,11 +5391,15 @@ const GCAL = (() => {
   function _rcAll(v){document.querySelectorAll(".rc").forEach(c=>c.checked=v);}
   async function restaurarDesdeGCal() {
     try {
+      toast('⬇️ Iniciando...');
       await ensureToken();
-      if (!accessToken) { toast('Primero conectá Google Calendar', 'err'); return; }
+      if (!accessToken) { toast('Sin token — reconectá Google Calendar', 'err'); return; }
+      toast('⬇️ Buscando calendario...');
       if (!dedicatedCalId) await ensureDedicatedCalendar();
-      toast('⬇️ Leyendo Google Calendar...');
+      if (!dedicatedCalId) { toast('No se encontró el calendario PadelCoach', 'err'); return; }
+      toast('⬇️ Leyendo eventos...');
       const allEvents = await fetchExistingEvents();
+      toast('⬇️ '+allEvents.length+' eventos encontrados...');
       const gcalIdsApp = new Set(S.clases.map(c=>c.gcal_event_id||c.gcal_imported).filter(Boolean));
       const titsFechas = new Set(S.clases.map(c=>(c.titulo||'').toLowerCase().trim()+'|'+c.fecha));
       const noEnApp = allEvents.filter(ev=>{
