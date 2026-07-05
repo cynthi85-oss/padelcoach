@@ -5420,10 +5420,10 @@ const GCAL = (() => {
       if (!body) return;
 
       body.innerHTML = '<div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:10px">👥 '+nuevos.length+' contactos de Google</div>'+
-        '<div style="display:flex;gap:8px;margin-bottom:10px">'+
-        '<button onclick="_rcAll(true)" class="btn-outline" style="flex:1;margin:0;font-size:12px;padding:8px">✅ Todos</button>'+
-        '<button onclick="_rcAll(false)" class="btn-outline" style="flex:1;margin:0;font-size:12px;padding:8px">☐ Ninguno</button>'+
-        '</div>'+
+        '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s3);border-radius:10px;margin-bottom:8px;cursor:pointer">'+
+        '<input type="checkbox" id="rc-all-master" checked onchange="_rcAll(this.checked)" style="width:20px;height:20px;flex-shrink:0">'+
+        '<span style="font-size:13px;font-weight:700;color:var(--t1)">Seleccionar / deseleccionar todos</span>'+
+        '</label>'+
         '<div style="max-height:300px;overflow-y:auto;margin-bottom:12px;border:1px solid rgba(255,255,255,0.08);border-radius:12px">'+
         nuevos.map((c,i) => {
           const nombre = c.names?.[0]?.displayName || '';
@@ -5464,7 +5464,11 @@ const GCAL = (() => {
     } catch(e) { console.error('importarContactosGoogle:', e); toast('Error: '+e.message, 'err'); }
   }
 
-  function _rcAll(v){document.querySelectorAll(".rc").forEach(c=>c.checked=v);}
+  function _rcAll(v){
+    document.querySelectorAll(".rc").forEach(c=>c.checked=v);
+    const m=document.getElementById('rc-all-master');
+    if(m) m.checked=v;
+  }
   async function restaurarDesdeGCal() {
     toast('⬇️ Conectando...');
     try {
@@ -5502,10 +5506,10 @@ const GCAL = (() => {
       const body = document.getElementById('gcal-body');
       if (!body) { toast('Error: panel no encontrado','err'); return; }
       body.innerHTML = '<div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:10px">⬇️ '+noEnApp.length+' eventos para restaurar</div>'+
-        '<div style="display:flex;gap:8px;margin-bottom:10px">'+
-        '<button onclick="_rcAll(true)" class="btn-outline" style="flex:1;margin:0;font-size:12px;padding:8px">✅ Todos</button>'+
-        '<button onclick="_rcAll(false)" class="btn-outline" style="flex:1;margin:0;font-size:12px;padding:8px">☐ Ninguno</button>'+
-        '</div>'+
+        '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s3);border-radius:10px;margin-bottom:8px;cursor:pointer">'+
+        '<input type="checkbox" id="rc-all-master" checked onchange="_rcAll(this.checked)" style="width:20px;height:20px;flex-shrink:0">'+
+        '<span style="font-size:13px;font-weight:700;color:var(--t1)">Seleccionar / deseleccionar todos</span>'+
+        '</label>'+
         '<div style="max-height:300px;overflow-y:auto;margin-bottom:12px;border:1px solid rgba(255,255,255,0.08);border-radius:12px">'+
         noEnApp.map((e,i)=>{
           const fecha=(e.start?.dateTime||e.start?.date||'').slice(0,10);
