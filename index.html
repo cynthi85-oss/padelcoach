@@ -1834,26 +1834,29 @@ async function importarDesdeAgenda() {
       const nombre = (c.name && c.name[0]) || '';
       const tel    = (c.tel  && c.tel[0])  || '';
       const email  = (c.email && c.email[0]) || '';
-      return `
-        <div class="ic-row" id="ic-row-${i}" data-sel="1">
-          <div class="ic-check" onclick="toggleContactSel(${i})">✓</div>
-          <div class="ic-info">
-            <div class="ic-name">${nombre || '(sin nombre)'}</div>
-            <div class="ic-sub">${tel}${tel && email ? ' · ' : ''}${email}</div>
-          </div>
-        </div>`;
+      return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer">
+        <input type="checkbox" class="ic-chk" id="ic-chk-${i}" checked style="width:18px;height:18px;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--t1)">${nombre||'(sin nombre)'}</div>
+          <div style="font-size:11px;color:var(--t2)">${tel}${tel&&email?' · ':''}${email}</div>
+        </div>
+      </label>`;
     }).join('');
 
     // Store contacts temporarily
     window._importContacts = contacts;
 
+    window._importContacts = contacts;
     openModal(`📋 Importar ${contacts.length} contacto${contacts.length>1?'s':''}`, `
-      <p style="font-size:12px;color:var(--t1);margin-bottom:12px">Seleccioná los que querés agregar como alumnos:</p>
-      <div class="ic-list">${previewRows}</div>
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s3);border-radius:10px;margin-bottom:8px;cursor:pointer">
+        <input type="checkbox" id="ic-master" checked onchange="document.querySelectorAll('.ic-chk').forEach(c=>c.checked=this.checked)" style="width:20px;height:20px;flex-shrink:0">
+        <span style="font-size:13px;font-weight:700;color:var(--t1)">Seleccionar / deseleccionar todos</span>
+      </label>
+      <div class="ic-list" style="max-height:320px;overflow-y:auto">${previewRows}</div>
     `, async () => {
       const toImport = contacts.filter((_, i) => {
-        const row = document.getElementById(`ic-row-${i}`);
-        return row && row.dataset.sel === '1';
+        const chk = document.getElementById('ic-chk-'+i);
+        return chk && chk.checked;
       });
       if (toImport.length === 0) { toast('Seleccioná al menos uno', 'err'); return; }
 
