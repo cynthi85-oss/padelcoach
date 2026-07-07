@@ -1809,27 +1809,47 @@ function importarVCF(input) {
     const vcards = text.split(/BEGIN:VCARD/i).filter(v=>v.trim());
     const contactos = [];
     vcards.forEach(vcard => {
-      const getName = (v) => {
-        const fn = v.match(/^FN[^:]*:(.*)/mi);
-        if (fn) return fn[1].trim();
-        const n = v.match(/^N[^:]*:(.*)/mi);
+        // Decodificar Quoted-Printable (=XX hex encoding)
+      // Parser VCF con soporte Quoted-Printable
+      const decodeQP = (s) => {
+        if (!s || s.indexOf('=') < 0) return s;
+        try {
+          return s.replace(/=([0-9A-Fa-f][0-9A-Fa-f])/g,
+            (_,h) => String.fromCharCode(parseInt(h,16))
+          ).trim();
+        } catch(e) { return s; }
+      };
+      const getField = (vcard, field) => {
+        // Buscar campo en el vcard línea por línea
+        const fieldUpper = field.toUpperCase();
+        const vlines = vcard.split('\n');
+        for (const line of vlines) {
+          const upper = line.toUpperCase();
+          if (!upper.startsWith(fieldUpper)) continue;
+          const colonIdx = line.indexOf(':');
+          if (colonIdx < 0) continue;
+          const key   = line.slice(0, colonIdx).toUpperCase();
+          const val   = line.slice(colonIdx + 1).trim();
+          const isQP  = key.includes('QUOTED-PRINTABLE') || key.includes('QP');
+          return isQP ? decodeQP(val) : val;
+        }
+        return '';
+      };
+      const getName = (vcard) => {
+        const fn = getField(vcard, 'FN');
+        if (fn) return fn;
+        const n = getField(vcard, 'N');
         if (n) {
-          const parts = n[1].split(';');
+          const parts = n.split(';');
           return [parts[1],parts[0]].filter(Boolean).join(' ').trim();
         }
         return '';
       };
-      const getTel = (v) => {
-        const m = v.match(/^TEL[^:]*:(.*)/mi);
-        return m ? m[1].trim().replace(/\s/g,'') : '';
+      const getTel = (vcard) => {
+        return getField(vcard, 'TEL').replace(/[\s\-]/g,'');
       };
-      const getEmail = (v) => {
-        const m = v.match(/^EMAIL[^:]*:(.*)/mi);
-        return m ? m[1].trim() : '';
-      };
+      const getEmail = (vcard) => getField(vcard, 'EMAIL');
       const nombre = getName(vcard);
-      if (!nombre) return;
-      contactos.push({ nombre, tel: getTel(vcard), email: getEmail(vcard) });
     });
 
     if (!contactos.length) { toast('No se encontraron contactos en el archivo', 'err'); return; }
