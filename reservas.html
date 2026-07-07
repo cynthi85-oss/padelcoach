@@ -10,50 +10,81 @@
 :root{
   --bg:#060912; --s1:#0b1120; --s2:#101830; --s3:#182241;
   --acc:#00e5a0; --acc2:#00cfff; --t1:#eef2ff; --t2:#8b95b5;
-  --rd:#ff3d6b;
+  --rd:#ff3d6b; --am:#ffb648;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{scroll-behavior:smooth}
 body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--t1);line-height:1.6;overflow-x:hidden}
 
-/* ── HERO ── */
-.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:24px;position:relative;
-  background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(0,229,160,.14),transparent),
-             radial-gradient(ellipse 60% 50% at 90% 110%,rgba(0,207,255,.1),transparent)}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);color:var(--acc);padding:8px 18px;border-radius:30px;font-size:13px;font-weight:700;margin-bottom:22px;letter-spacing:.5px}
-h1{font-size:clamp(34px,9vw,64px);font-weight:900;line-height:1.08;letter-spacing:-1px;margin-bottom:16px}
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:24px;position:relative;overflow:hidden;
+  background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(0,229,160,.16),transparent),
+             radial-gradient(ellipse 60% 50% at 90% 110%,rgba(0,207,255,.12),transparent)}
+
+.floatball{position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 30%,#baff5f,#8fd93a);opacity:.18;filter:blur(1px);animation:float 7s ease-in-out infinite}
+.fb1{width:70px;height:70px;top:8%;left:6%;animation-delay:0s}
+.fb2{width:44px;height:44px;top:70%;left:85%;animation-delay:1.4s}
+.fb3{width:30px;height:30px;top:20%;left:88%;animation-delay:2.6s}
+.fb4{width:54px;height:54px;top:78%;left:10%;animation-delay:3.5s}
+@keyframes float{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-24px) rotate(20deg)}}
+
+.court-ill{width:min(280px,72vw);margin:0 auto 18px;position:relative;z-index:1}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);color:var(--acc);padding:8px 18px;border-radius:30px;font-size:13px;font-weight:700;margin-bottom:18px;letter-spacing:.5px;position:relative;z-index:1}
+h1{font-size:clamp(34px,9vw,64px);font-weight:900;line-height:1.08;letter-spacing:-1px;margin-bottom:16px;position:relative;z-index:1}
 h1 .grad{background:linear-gradient(120deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero p{font-size:clamp(15px,4vw,19px);color:var(--t2);max-width:520px;margin-bottom:34px}
-.cta{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(120deg,var(--acc),#00c98d);color:#04120c;font-size:17px;font-weight:800;padding:17px 38px;border-radius:18px;text-decoration:none;box-shadow:0 8px 30px rgba(0,229,160,.35);transition:.25s}
+.hero p{font-size:clamp(15px,4vw,19px);color:var(--t2);max-width:520px;margin-bottom:34px;position:relative;z-index:1}
+.cta{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(120deg,var(--acc),#00c98d);color:#04120c;font-size:17px;font-weight:800;padding:17px 38px;border-radius:18px;text-decoration:none;box-shadow:0 8px 30px rgba(0,229,160,.35);transition:.25s;position:relative;z-index:1}
 .cta:active{transform:scale(.97)}
 .cta.sec{background:var(--s2);color:var(--t1);border:1px solid var(--s3);box-shadow:none;margin-top:12px}
-.hero-stats{display:flex;gap:14px;margin-top:44px;flex-wrap:wrap;justify-content:center}
+.hero-stats{display:flex;gap:14px;margin-top:44px;flex-wrap:wrap;justify-content:center;position:relative;z-index:1}
 .hstat{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:14px 22px;backdrop-filter:blur(6px)}
 .hstat b{display:block;font-size:24px;color:var(--acc);font-weight:900}
 .hstat span{font-size:12px;color:var(--t2)}
-.scroll-hint{position:absolute;bottom:22px;color:var(--t2);font-size:22px;animation:bounce 1.8s infinite}
+.scroll-hint{position:absolute;bottom:22px;color:var(--t2);font-size:22px;animation:bounce 1.8s infinite;z-index:1}
 @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
 
-/* ── SECCIONES ── */
 section{padding:64px 22px;max-width:640px;margin:0 auto}
 .sec-title{font-size:clamp(24px,6vw,34px);font-weight:900;margin-bottom:8px;letter-spacing:-.5px}
 .sec-sub{color:var(--t2);font-size:15px;margin-bottom:30px}
 
-/* ── SERVICIOS ── */
 .cards{display:grid;gap:14px}
 .card{background:linear-gradient(160deg,var(--s1),var(--s2));border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:22px;display:flex;gap:16px;align-items:flex-start;transition:.25s}
+.card:active{transform:scale(.98)}
 .card .ico{font-size:30px;flex-shrink:0;width:56px;height:56px;display:flex;align-items:center;justify-content:center;background:rgba(0,229,160,.1);border-radius:16px}
 .card h3{font-size:17px;font-weight:800;margin-bottom:4px}
 .card p{font-size:13.5px;color:var(--t2)}
 .card .tag{display:inline-block;margin-top:8px;font-size:11px;font-weight:700;color:var(--acc);background:rgba(0,229,160,.1);padding:3px 10px;border-radius:12px}
 
-/* ── HORARIOS ── */
+.gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.gal-item{aspect-ratio:1;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:30px;position:relative;overflow:hidden;transition:.3s}
+.gal-item:active{transform:scale(.95)}
+.gal-item::after{content:'';position:absolute;inset:0;background:linear-gradient(160deg,transparent,rgba(0,0,0,.25))}
+.g1{background:linear-gradient(150deg,#0d3d2e,#00e5a0 140%)}
+.g2{background:linear-gradient(150deg,#0a2e45,#00cfff 140%)}
+.g3{background:linear-gradient(150deg,#3d2e0d,#ffb648 140%)}
+.g4{background:linear-gradient(150deg,#2e0d3d,#c98fff 140%)}
+.g5{background:linear-gradient(150deg,#3d0d1c,#ff3d6b 140%)}
+.g6{background:linear-gradient(150deg,#0d2b3d,#4facfe 140%)}
+.gal-note{text-align:center;font-size:12px;color:var(--t2);margin-top:14px}
+
+.ig-card{background:linear-gradient(135deg,#405de6,#5851db 25%,#833ab4 50%,#c13584 75%,#fd1d1d 100%);border-radius:22px;padding:2px;text-decoration:none;display:block}
+.ig-inner{background:var(--s1);border-radius:20px;padding:22px;display:flex;align-items:center;gap:16px}
+.ig-inner .ig-ico{width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#405de6,#833ab4,#fd1d1d);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ig-inner b{font-size:15.5px;display:block}
+.ig-inner span{font-size:13px;color:var(--t2)}
+.ig-arrow{margin-left:auto;color:var(--t2);font-size:20px}
+
+.testi{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.testi::-webkit-scrollbar{display:none}
+.t-card{scroll-snap-align:start;flex:0 0 84%;background:var(--s1);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:20px}
+.t-stars{color:var(--am);font-size:14px;margin-bottom:8px;letter-spacing:2px}
+.t-txt{font-size:14px;color:var(--t1);margin-bottom:12px;font-style:italic}
+.t-name{font-size:12.5px;color:var(--t2);font-weight:700}
+
 .horarios{display:grid;gap:10px}
 .hor-row{display:flex;justify-content:space-between;align-items:center;background:var(--s1);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:14px 18px}
 .hor-row .dia{font-weight:700;font-size:14.5px}
 .hor-row .hs{color:var(--acc);font-weight:700;font-size:13.5px}
 
-/* ── RESERVA FORM ── */
 .form-card{background:linear-gradient(160deg,var(--s1),var(--s2));border:1px solid rgba(0,229,160,.2);border-radius:24px;padding:26px;box-shadow:0 10px 50px rgba(0,229,160,.08)}
 label{display:block;font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px}
 input,select,textarea{width:100%;background:var(--bg);border:1.5px solid var(--s3);border-radius:13px;color:var(--t1);font-size:15px;padding:13px 15px;outline:none;font-family:inherit;transition:.2s}
@@ -64,11 +95,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--acc)}
 .chip{background:var(--bg);border:1.5px solid var(--s3);color:var(--t2);padding:9px 16px;border-radius:24px;font-size:13.5px;font-weight:700;cursor:pointer;transition:.2s;user-select:none}
 .chip.on{background:rgba(0,229,160,.14);border-color:var(--acc);color:var(--acc)}
 
-/* ── FOOTER ── */
 footer{text-align:center;padding:38px 20px 90px;color:var(--t2);font-size:12.5px;border-top:1px solid rgba(255,255,255,.05)}
 footer b{color:var(--t1)}
+.foot-ig{display:inline-flex;align-items:center;gap:6px;margin-top:10px;color:var(--acc2);text-decoration:none;font-weight:700;font-size:13px}
 
-/* ── WA FLOTANTE ── */
 .wa-float{position:fixed;bottom:22px;right:20px;width:58px;height:58px;background:linear-gradient(120deg,#25d366,#128c7e);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(37,211,102,.45);z-index:50;text-decoration:none;font-size:28px;animation:pulse 2.4s infinite}
 @keyframes pulse{0%,100%{box-shadow:0 8px 24px rgba(37,211,102,.45)}50%{box-shadow:0 8px 34px rgba(37,211,102,.75)}}
 
@@ -78,8 +108,28 @@ footer b{color:var(--t1)}
 </head>
 <body>
 
-<!-- HERO -->
 <div class="hero">
+  <div class="floatball fb1"></div>
+  <div class="floatball fb2"></div>
+  <div class="floatball fb3"></div>
+  <div class="floatball fb4"></div>
+
+  <svg class="court-ill" viewBox="0 0 300 200" fill="none">
+    <rect x="10" y="10" width="280" height="180" rx="14" fill="#0d1a33" stroke="#00e5a0" stroke-width="2" opacity=".9"/>
+    <line x1="10" y1="100" x2="290" y2="100" stroke="#00cfff" stroke-width="2" opacity=".6"/>
+    <line x1="150" y1="10" x2="150" y2="190" stroke="#00cfff" stroke-width="2" opacity=".6"/>
+    <rect x="10" y="70" width="280" height="60" fill="none" stroke="#00e5a0" stroke-width="1.5" opacity=".35"/>
+    <circle cx="150" cy="100" r="10" fill="#baff5f"/>
+    <g opacity=".85">
+      <circle cx="70" cy="150" r="9" fill="#00e5a0"/>
+      <rect x="61" y="160" width="18" height="26" rx="6" fill="#00e5a0"/>
+    </g>
+    <g opacity=".85">
+      <circle cx="230" cy="55" r="9" fill="#00cfff"/>
+      <rect x="221" y="65" width="18" height="26" rx="6" fill="#00cfff"/>
+    </g>
+  </svg>
+
   <div class="hero-badge">🎾 +20 AÑOS DE EXPERIENCIA</div>
   <h1>Aprendé pádel<br>con <span class="grad">Emmanuel</span></h1>
   <p>Clases personalizadas para todos los niveles. Método propio, seguimiento individual y resultados desde la primera clase.</p>
@@ -93,7 +143,6 @@ footer b{color:var(--t1)}
   <div class="scroll-hint">⌄</div>
 </div>
 
-<!-- SERVICIOS -->
 <section id="servicios">
   <h2 class="sec-title reveal">Clases para <span style="color:var(--acc)">todos</span></h2>
   <p class="sec-sub reveal">Elegí la modalidad que mejor se adapte a vos</p>
@@ -133,7 +182,58 @@ footer b{color:var(--t1)}
   </div>
 </section>
 
-<!-- HORARIOS -->
+<section id="galeria">
+  <h2 class="sec-title reveal">Momentos en la cancha</h2>
+  <p class="sec-sub reveal">Así se vive una clase con nosotros</p>
+  <div class="gallery reveal">
+    <div class="gal-item g1">🎾</div>
+    <div class="gal-item g2">🏆</div>
+    <div class="gal-item g3">🤾</div>
+    <div class="gal-item g4">👥</div>
+    <div class="gal-item g5">🔥</div>
+    <div class="gal-item g6">💪</div>
+  </div>
+  <p class="gal-note">📸 Espacio reservado para fotos reales de las clases — subilas cuando quieras</p>
+</section>
+
+<section id="instagram" style="padding-top:0">
+  <a class="ig-card reveal" href="https://www.instagram.com/padelconemmanuel" target="_blank" rel="noopener">
+    <div class="ig-inner">
+      <div class="ig-ico">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>
+      </div>
+      <div>
+        <b>@padelconemmanuel</b>
+        <span>Seguime para ver clases, tips y más</span>
+      </div>
+      <div class="ig-arrow">→</div>
+    </div>
+  </a>
+</section>
+
+<section id="testimonios">
+  <h2 class="sec-title reveal">Lo que dicen mis alumnos</h2>
+  <p class="sec-sub reveal">Experiencias reales de quienes ya entrenan conmigo</p>
+  <div class="testi reveal">
+    <div class="t-card">
+      <div class="t-stars">★★★★★</div>
+      <div class="t-txt">"Empecé de cero y en dos meses ya jugaba partidos con mis amigos. Emmanuel tiene una paciencia increíble."</div>
+      <div class="t-name">— Alumno de clases grupales</div>
+    </div>
+    <div class="t-card">
+      <div class="t-stars">★★★★★</div>
+      <div class="t-txt">"Las clases particulares me ayudaron a corregir la técnica que tenía mal hace años. Se nota la experiencia."</div>
+      <div class="t-name">— Alumno de clases particulares</div>
+    </div>
+    <div class="t-card">
+      <div class="t-stars">★★★★★</div>
+      <div class="t-txt">"Mi hijo arrancó con miedo a la pelota y ahora no quiere faltar a ninguna clase. Gracias por el trabajo con los chicos."</div>
+      <div class="t-name">— Mamá de alumno kids</div>
+    </div>
+  </div>
+  <p class="gal-note">💬 Testimonios de ejemplo — reemplazalos por los de tus alumnos reales cuando quieras</p>
+</section>
+
 <section id="horarios">
   <h2 class="sec-title reveal">Horarios</h2>
   <p class="sec-sub reveal">Turnos de mañana y tarde, de lunes a sábado</p>
@@ -144,7 +244,6 @@ footer b{color:var(--t1)}
   </div>
 </section>
 
-<!-- RESERVA -->
 <section id="reservar">
   <h2 class="sec-title reveal">Reservá tu clase</h2>
   <p class="sec-sub reveal">Completá y te confirmo por WhatsApp en minutos</p>
@@ -182,7 +281,12 @@ footer b{color:var(--t1)}
 
 <footer>
   <b>Padel Con Emmanuel</b><br>
-  Clases de pádel · Buenos Aires<br><br>
+  Clases de pádel · Buenos Aires<br>
+  <a class="foot-ig" href="https://www.instagram.com/padelconemmanuel" target="_blank" rel="noopener">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>
+    @padelconemmanuel
+  </a>
+  <br><br>
   🎾 Tu primera clase te está esperando
 </footer>
 
@@ -191,10 +295,8 @@ footer b{color:var(--t1)}
 </a>
 
 <script>
-// ⚙️ CONFIGURACIÓN — poné acá tu número de WhatsApp con código de país, sin + ni espacios
 const WA_NUMERO = '5491126620938';
 
-// Chips selección
 document.querySelectorAll('.chips').forEach(group => {
   group.addEventListener('click', e => {
     const chip = e.target.closest('.chip');
@@ -214,20 +316,18 @@ function enviarReserva() {
   const horario = document.getElementById('r-horario').value.trim();
   const coment  = document.getElementById('r-coment').value.trim();
   if (!nombre) { document.getElementById('r-nombre').focus(); return; }
-  let msg = 'Hola Emmanuel! 🎾 Quiero reservar una clase.\n';
-  msg += '\n👤 Nombre: ' + nombre;
-  msg += '\n🎯 Tipo: ' + chipVal('chips-tipo');
-  msg += '\n📊 Nivel: ' + chipVal('chips-nivel');
-  if (horario) msg += '\n📅 Preferencia: ' + horario;
-  if (coment)  msg += '\n💬 ' + coment;
+  let msg = 'Hola Emmanuel! Quiero reservar una clase.\n';
+  msg += '\nNombre: ' + nombre;
+  msg += '\nTipo: ' + chipVal('chips-tipo');
+  msg += '\nNivel: ' + chipVal('chips-nivel');
+  if (horario) msg += '\nPreferencia: ' + horario;
+  if (coment)  msg += '\nComentario: ' + coment;
   window.open('https://wa.me/' + WA_NUMERO + '?text=' + encodeURIComponent(msg), '_blank');
 }
 
-// WA flotante con mensaje genérico
 document.getElementById('wa-float').href =
-  'https://wa.me/' + WA_NUMERO + '?text=' + encodeURIComponent('Hola Emmanuel! Quiero info sobre las clases de pádel 🎾');
+  'https://wa.me/' + WA_NUMERO + '?text=' + encodeURIComponent('Hola Emmanuel! Quiero info sobre las clases de padel');
 
-// Reveal on scroll
 const obs = new IntersectionObserver(es => es.forEach(e => {
   if (e.isIntersecting) e.target.classList.add('in');
 }), { threshold: .12 });
