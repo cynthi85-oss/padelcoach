@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Padel Con Emmanuel — Clases de Pádel</title>
+<meta name="description" content="Clases de pádel con Emmanuel. +20 años de experiencia. Reservá tu clase ahora.">
+<meta name="theme-color" content="#060912">
+<style>
+:root{
+  --bg:#060912; --s1:#0b1120; --s2:#101830; --s3:#182241;
+  --acc:#00e5a0; --acc2:#00cfff; --t1:#eef2ff; --t2:#8b95b5;
+  --rd:#ff3d6b;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--t1);line-height:1.6;overflow-x:hidden}
+
+/* ── HERO ── */
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:24px;position:relative;
+  background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(0,229,160,.14),transparent),
+             radial-gradient(ellipse 60% 50% at 90% 110%,rgba(0,207,255,.1),transparent)}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);color:var(--acc);padding:8px 18px;border-radius:30px;font-size:13px;font-weight:700;margin-bottom:22px;letter-spacing:.5px}
+h1{font-size:clamp(34px,9vw,64px);font-weight:900;line-height:1.08;letter-spacing:-1px;margin-bottom:16px}
+h1 .grad{background:linear-gradient(120deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{font-size:clamp(15px,4vw,19px);color:var(--t2);max-width:520px;margin-bottom:34px}
+.cta{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(120deg,var(--acc),#00c98d);color:#04120c;font-size:17px;font-weight:800;padding:17px 38px;border-radius:18px;text-decoration:none;box-shadow:0 8px 30px rgba(0,229,160,.35);transition:.25s}
+.cta:active{transform:scale(.97)}
+.cta.sec{background:var(--s2);color:var(--t1);border:1px solid var(--s3);box-shadow:none;margin-top:12px}
+.hero-stats{display:flex;gap:14px;margin-top:44px;flex-wrap:wrap;justify-content:center}
+.hstat{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:14px 22px;backdrop-filter:blur(6px)}
+.hstat b{display:block;font-size:24px;color:var(--acc);font-weight:900}
+.hstat span{font-size:12px;color:var(--t2)}
+.scroll-hint{position:absolute;bottom:22px;color:var(--t2);font-size:22px;animation:bounce 1.8s infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
+
+/* ── SECCIONES ── */
+section{padding:64px 22px;max-width:640px;margin:0 auto}
+.sec-title{font-size:clamp(24px,6vw,34px);font-weight:900;margin-bottom:8px;letter-spacing:-.5px}
+.sec-sub{color:var(--t2);font-size:15px;margin-bottom:30px}
+
+/* ── SERVICIOS ── */
+.cards{display:grid;gap:14px}
+.card{background:linear-gradient(160deg,var(--s1),var(--s2));border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:22px;display:flex;gap:16px;align-items:flex-start;transition:.25s}
+.card .ico{font-size:30px;flex-shrink:0;width:56px;height:56px;display:flex;align-items:center;justify-content:center;background:rgba(0,229,160,.1);border-radius:16px}
+.card h3{font-size:17px;font-weight:800;margin-bottom:4px}
+.card p{font-size:13.5px;color:var(--t2)}
+.card .tag{display:inline-block;margin-top:8px;font-size:11px;font-weight:700;color:var(--acc);background:rgba(0,229,160,.1);padding:3px 10px;border-radius:12px}
+
+/* ── HORARIOS ── */
+.horarios{display:grid;gap:10px}
+.hor-row{display:flex;justify-content:space-between;align-items:center;background:var(--s1);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:14px 18px}
+.hor-row .dia{font-weight:700;font-size:14.5px}
+.hor-row .hs{color:var(--acc);font-weight:700;font-size:13.5px}
+
+/* ── RESERVA FORM ── */
+.form-card{background:linear-gradient(160deg,var(--s1),var(--s2));border:1px solid rgba(0,229,160,.2);border-radius:24px;padding:26px;box-shadow:0 10px 50px rgba(0,229,160,.08)}
+label{display:block;font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px}
+input,select,textarea{width:100%;background:var(--bg);border:1.5px solid var(--s3);border-radius:13px;color:var(--t1);font-size:15px;padding:13px 15px;outline:none;font-family:inherit;transition:.2s}
+input:focus,select:focus,textarea:focus{border-color:var(--acc)}
+.btn-wa{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:22px;background:linear-gradient(120deg,#25d366,#128c7e);color:#fff;font-size:16px;font-weight:800;padding:16px;border:none;border-radius:15px;cursor:pointer;box-shadow:0 6px 24px rgba(37,211,102,.3);transition:.2s}
+.btn-wa:active{transform:scale(.98)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.chip{background:var(--bg);border:1.5px solid var(--s3);color:var(--t2);padding:9px 16px;border-radius:24px;font-size:13.5px;font-weight:700;cursor:pointer;transition:.2s;user-select:none}
+.chip.on{background:rgba(0,229,160,.14);border-color:var(--acc);color:var(--acc)}
+
+/* ── FOOTER ── */
+footer{text-align:center;padding:38px 20px 90px;color:var(--t2);font-size:12.5px;border-top:1px solid rgba(255,255,255,.05)}
+footer b{color:var(--t1)}
+
+/* ── WA FLOTANTE ── */
+.wa-float{position:fixed;bottom:22px;right:20px;width:58px;height:58px;background:linear-gradient(120deg,#25d366,#128c7e);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(37,211,102,.45);z-index:50;text-decoration:none;font-size:28px;animation:pulse 2.4s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 8px 24px rgba(37,211,102,.45)}50%{box-shadow:0 8px 34px rgba(37,211,102,.75)}}
+
+.reveal{opacity:0;transform:translateY(22px);transition:.6s cubic-bezier(.4,0,.2,1)}
+.reveal.in{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">🎾 +20 AÑOS DE EXPERIENCIA</div>
+  <h1>Aprendé pádel<br>con <span class="grad">Emmanuel</span></h1>
+  <p>Clases personalizadas para todos los niveles. Método propio, seguimiento individual y resultados desde la primera clase.</p>
+  <a class="cta" href="#reservar">📅 Reservar mi clase</a>
+  <a class="cta sec" href="#horarios">Ver horarios disponibles</a>
+  <div class="hero-stats">
+    <div class="hstat"><b>+20</b><span>años enseñando</span></div>
+    <div class="hstat"><b>+500</b><span>alumnos formados</span></div>
+    <div class="hstat"><b>100%</b><span>personalizado</span></div>
+  </div>
+  <div class="scroll-hint">⌄</div>
+</div>
+
+<!-- SERVICIOS -->
+<section id="servicios">
+  <h2 class="sec-title reveal">Clases para <span style="color:var(--acc)">todos</span></h2>
+  <p class="sec-sub reveal">Elegí la modalidad que mejor se adapte a vos</p>
+  <div class="cards">
+    <div class="card reveal">
+      <div class="ico">🎯</div>
+      <div>
+        <h3>Clase particular</h3>
+        <p>Entrenamiento 1 a 1, enfocado en tu técnica, tus tiempos y tus objetivos.</p>
+        <span class="tag">Ideal para avanzar rápido</span>
+      </div>
+    </div>
+    <div class="card reveal">
+      <div class="ico">👥</div>
+      <div>
+        <h3>Clase grupal (hasta 4)</h3>
+        <p>Entrená con amigos o sumate a un grupo de tu nivel. Divertido y económico.</p>
+        <span class="tag">La más elegida</span>
+      </div>
+    </div>
+    <div class="card reveal">
+      <div class="ico">🧒</div>
+      <div>
+        <h3>Kids & principiantes</h3>
+        <p>Iniciación al pádel para chicos y adultos que arrancan de cero. Paciencia y método.</p>
+        <span class="tag">Desde los 6 años</span>
+      </div>
+    </div>
+    <div class="card reveal">
+      <div class="ico">🏆</div>
+      <div>
+        <h3>Entrenamiento competitivo</h3>
+        <p>Preparación física y táctica para torneos. Llevá tu juego al siguiente nivel.</p>
+        <span class="tag">Nivel intermedio/avanzado</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HORARIOS -->
+<section id="horarios">
+  <h2 class="sec-title reveal">Horarios</h2>
+  <p class="sec-sub reveal">Turnos de mañana y tarde, de lunes a sábado</p>
+  <div class="horarios">
+    <div class="hor-row reveal"><span class="dia">Lunes a Viernes</span><span class="hs">07:00 – 17:00</span></div>
+    <div class="hor-row reveal"><span class="dia">Sábados</span><span class="hs">08:00 – 14:00</span></div>
+    <div class="hor-row reveal"><span class="dia">Domingos</span><span class="hs" style="color:var(--t2)">Cerrado</span></div>
+  </div>
+</section>
+
+<!-- RESERVA -->
+<section id="reservar">
+  <h2 class="sec-title reveal">Reservá tu clase</h2>
+  <p class="sec-sub reveal">Completá y te confirmo por WhatsApp en minutos</p>
+  <div class="form-card reveal">
+    <label>Tu nombre *</label>
+    <input id="r-nombre" type="text" placeholder="Ej: Juan Pérez" autocomplete="name">
+
+    <label>Tipo de clase</label>
+    <div class="chips" id="chips-tipo">
+      <span class="chip on" data-v="Particular">🎯 Particular</span>
+      <span class="chip" data-v="Grupal">👥 Grupal</span>
+      <span class="chip" data-v="Kids/Principiante">🧒 Kids</span>
+      <span class="chip" data-v="Competitivo">🏆 Competitivo</span>
+    </div>
+
+    <label>Tu nivel</label>
+    <div class="chips" id="chips-nivel">
+      <span class="chip on" data-v="Principiante">Principiante</span>
+      <span class="chip" data-v="Intermedio">Intermedio</span>
+      <span class="chip" data-v="Avanzado">Avanzado</span>
+    </div>
+
+    <label>Día y horario preferido</label>
+    <input id="r-horario" type="text" placeholder="Ej: Martes a la mañana / Jueves 10hs">
+
+    <label>Comentario (opcional)</label>
+    <textarea id="r-coment" rows="2" placeholder="Contame tu objetivo o consulta"></textarea>
+
+    <button class="btn-wa" onclick="enviarReserva()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      Reservar por WhatsApp
+    </button>
+  </div>
+</section>
+
+<footer>
+  <b>Padel Con Emmanuel</b><br>
+  Clases de pádel · Buenos Aires<br><br>
+  🎾 Tu primera clase te está esperando
+</footer>
+
+<a class="wa-float" id="wa-float" href="#" aria-label="WhatsApp">
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+</a>
+
+<script>
+// ⚙️ CONFIGURACIÓN — poné acá tu número de WhatsApp con código de país, sin + ni espacios
+const WA_NUMERO = '5491100000000';
+
+// Chips selección
+document.querySelectorAll('.chips').forEach(group => {
+  group.addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    group.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+    chip.classList.add('on');
+  });
+});
+
+function chipVal(id) {
+  const on = document.querySelector('#'+id+' .chip.on');
+  return on ? on.dataset.v : '';
+}
+
+function enviarReserva() {
+  const nombre  = document.getElementById('r-nombre').value.trim();
+  const horario = document.getElementById('r-horario').value.trim();
+  const coment  = document.getElementById('r-coment').value.trim();
+  if (!nombre) { document.getElementById('r-nombre').focus(); return; }
+  let msg = 'Hola Emmanuel! 🎾 Quiero reservar una clase.\n';
+  msg += '\n👤 Nombre: ' + nombre;
+  msg += '\n🎯 Tipo: ' + chipVal('chips-tipo');
+  msg += '\n📊 Nivel: ' + chipVal('chips-nivel');
+  if (horario) msg += '\n📅 Preferencia: ' + horario;
+  if (coment)  msg += '\n💬 ' + coment;
+  window.open('https://wa.me/' + WA_NUMERO + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
+// WA flotante con mensaje genérico
+document.getElementById('wa-float').href =
+  'https://wa.me/' + WA_NUMERO + '?text=' + encodeURIComponent('Hola Emmanuel! Quiero info sobre las clases de pádel 🎾');
+
+// Reveal on scroll
+const obs = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) e.target.classList.add('in');
+}), { threshold: .12 });
+document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>
