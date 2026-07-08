@@ -1806,7 +1806,6 @@ function importarVCF(input) {
   reader.onload = async (e) => {
     const text = e.target.result;
     const vcards = text.split(/BEGIN:VCARD/i).filter(v=>v.trim());
-    alert('DEBUG\n\nCaracteres leidos: '+text.length+'\nTarjetas VCARD encontradas: '+vcards.length+'\n\nPrimeros 400 caracteres:\n'+text.slice(0,400));
     const contactos = [];
     vcards.forEach(vcard => {
         // Decodificar Quoted-Printable (=XX hex encoding)
@@ -1850,6 +1849,8 @@ function importarVCF(input) {
       };
       const getEmail = (vcard) => getField(vcard, 'EMAIL');
       const nombre = getName(vcard);
+      if (!nombre) return;
+      contactos.push({ nombre, tel: getTel(vcard), email: getEmail(vcard) });
     });
 
     if (!contactos.length) { toast('No se encontraron contactos en el archivo', 'err'); return; }
