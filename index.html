@@ -1738,27 +1738,35 @@ async function confirmarAsistencia(claseId, resultado) {
 function rAlumnos(q='') {
   const mesActual = fmt(new Date()).slice(0,7);
   const tienePagoMes = id => S.pagos.some(p => p.alumnoId===id && p.fecha?.slice(0,7)===mesActual && p.estado==='pagado');
+  const tieneClases  = id => S.clases.some(c => c.alumnoId===id || (c.alumnosIds||[]).includes(id));
   const mostrarArchivados = window._mostrarArchivados || false;
   const activos    = S.alumnos.filter(a => !a.archivado);
   const archivados = S.alumnos.filter(a =>  a.archivado);
   const pool = mostrarArchivados ? archivados : activos;
   const filtered = (q ? pool.filter(a=>a.nombre.toLowerCase().includes(q.toLowerCase())) : pool)
     .slice().sort((a,b) => {
-      const pa = tienePagoMes(a.id), pb = tienePagoMes(b.id);
-      if (!pa && pb) return -1; // pendiente primero
-      if (pa && !pb) return 1;
+      const pendA = tieneClases(a.id) && !tienePagoMes(a.id);
+      const pendB = tieneClases(b.id) && !tienePagoMes(b.id);
+      if (pendA && !pendB) return -1; // pendiente primero
+      if (!pendA && pendB) return 1;
       return a.nombre.localeCompare(b.nombre);
     });
   const rows = filtered.map(al => {
     const p = S.pagos.filter(x=>x.alumnoId===al.id).sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
     const est = p ? p.estado : null;
+    const conClase = tieneClases(al.id);
+    const badge = !conClase
+      ? '<span class="badge ba">sin clases</span>'
+      : tienePagoMes(al.id)
+        ? '<span class="badge bg">al día</span>'
+        : '<span class="badge br">pagos pendientes</span>';
     return `<div class="row" onclick="verAlumno(${al.id})">
       ${avatarHtml(al,'sm')}
       <div class="row-info">
         <div class="row-name">${al.nombre}</div>
         <div class="row-sub"><span class="lvl-p ${NIVEL_CLS[al.nivel]}">${NIVELES[al.nivel]}</span> · ${al.freq} clase${al.freq>1?'s':''}/sem</div>
       </div>
-      ${tienePagoMes(al.id) ? '<span class="badge bg">al día</span>' : '<span class="badge br">pagos pendientes</span>'}
+      ${badge}
     </div>`;
   }).join('') || '<p class="empty">Sin resultados</p>';
  
@@ -2459,13 +2467,15 @@ function rPagos(vista = 'alumnos') {
     // Vista por alumno: todos los alumnos con su situación de pago
     const mesP = hoy.slice(0,7);
     const tienePagoMesP = id => S.pagos.some(p => p.alumnoId===id && p.fecha?.slice(0,7)===mesP && p.estado==='pagado');
+    const tieneClasesP  = id => S.clases.some(c => c.alumnoId===id || (c.alumnosIds||[]).includes(id));
     const alumnosFiltrados = (qPagos
       ? S.alumnos.filter(al => al.nombre.toLowerCase().includes(qPagos))
       : S.alumnos
     ).slice().sort((a,b) => {
-      const pa = tienePagoMesP(a.id), pb = tienePagoMesP(b.id);
-      if (!pa && pb) return -1;
-      if (pa && !pb) return 1;
+      const pendA = tieneClasesP(a.id) && !tienePagoMesP(a.id);
+      const pendB = tieneClasesP(b.id) && !tienePagoMesP(b.id);
+      if (pendA && !pendB) return -1;
+      if (!pendA && pendB) return 1;
       return a.nombre.localeCompare(b.nombre);
     });
 
@@ -2474,7 +2484,8 @@ function rPagos(vista = 'alumnos') {
       const pagosAl = S.pagos.filter(p => p.estado==='pagado' && p.alumnoId===al.id)
         .sort((a,b) => b.fecha.localeCompare(a.fecha)).slice(0, 3);
       const ultimoPago = pagosAl[0];
-      const alDia = tienePagoMesP(al.id);
+      const conClase = tieneClasesP(al.id);
+      const alDia = !conClase || tienePagoMesP(al.id);
 
       const histRows = pagosAl.map(p =>
         `<div class="pay-hist-row">
@@ -2484,18 +2495,24 @@ function rPagos(vista = 'alumnos') {
         </div>`
       ).join('');
 
+      const badge = !conClase
+        ? '<span class="badge ba">sin clases</span>'
+        : alDia ? '<span class="badge bg">al día</span>' : '<span class="badge br">pagos pendientes</span>';
+
       return `
-        <div class="pay-alumno-card ${alDia?'':'con-deuda'}">
+        <div class="pay-alumno-card ${!conClase||alDia?'':'con-deuda'}">
           <div class="pay-al-header" onclick="this.parentElement.classList.toggle('open')">
             ${avatarHtml(al,'sm')}
             <div class="pay-al-info">
               <div class="pay-al-name">${al.nombre}${al.cuota>0?` <span class="cuota-badge">${fmtMoney(al.cuota)}/mes</span>`:''}</div>
-              <div class="pay-al-sub">${alDia
-                ? `Último pago: ${ultimoPago?fmtDisp(ultimoPago.fecha):'—'}`
-                : `<span style="color:var(--rd)">⚠️ Sin pago este mes</span>`
+              <div class="pay-al-sub">${!conClase
+                ? `<span style="color:var(--t2)">Sin clases asignadas todavía</span>`
+                : alDia
+                  ? `Último pago: ${ultimoPago?fmtDisp(ultimoPago.fecha):'—'}`
+                  : `<span style="color:var(--rd)">⚠️ Sin pago este mes</span>`
               }</div>
             </div>
-            ${alDia ? '<span class="badge bg">al día</span>' : '<span class="badge br">pagos pendientes</span>'}
+            ${badge}
           </div>
           <div class="pay-al-body">
             ${histRows?`<div class="pay-hist-section"><div class="pay-sec-lbl">Últimos pagos</div>${histRows}</div>`:''}
@@ -2505,8 +2522,9 @@ function rPagos(vista = 'alumnos') {
       } catch(e) { return `<div class="row"><div class="row-info"><div class="row-name">${al.nombre}</div><div class="row-sub" style="color:var(--rd)">Error: ${e.message}</div></div></div>`; }
     }).join('') || '<p class="empty">Sin alumnos</p>';
  
+    const pendientesReal = alumnosFiltrados.filter(al=>tieneClasesP(al.id) && !tienePagoMesP(al.id)).length;
     contenido = `
-      ${alumnosFiltrados.filter(al=>!tienePagoMesP(al.id)).length ? `<div class="pay-alert-banner">⚠️ ${alumnosFiltrados.filter(al=>!tienePagoMesP(al.id)).length} alumno${alumnosFiltrados.filter(al=>!tienePagoMesP(al.id)).length>1?'s':''} sin pago este mes</div>` : ''}
+      ${pendientesReal ? `<div class="pay-alert-banner">⚠️ ${pendientesReal} alumno${pendientesReal>1?'s':''} sin pago este mes</div>` : ''}
       <div class="pay-alumnos-list">${filas}</div>`;
  
   } else if (vista === 'movimientos') {
