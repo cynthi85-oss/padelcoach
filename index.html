@@ -1850,6 +1850,8 @@ function importarVCF(input) {
       };
       const getEmail = (vcard) => getField(vcard, 'EMAIL');
       const nombre = getName(vcard);
+      if (!nombre) return;
+      contactos.push({ nombre, tel: getTel(vcard), email: getEmail(vcard) });
     });
 
     if (!contactos.length) { toast('No se encontraron contactos en el archivo', 'err'); return; }
