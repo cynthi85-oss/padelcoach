@@ -1780,7 +1780,12 @@ function rAlumnos(q='') {
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       Importar contactos VCF (Google)
     </button>
-    <input type="file" id="vcf-input" accept=".vcf,.vcard" style="display:none" onchange="importarVCF(this)">`;
+    <button class="btn-import-contacts" onclick="document.getElementById('csv-input').click()" style="margin-top:-4px;background:linear-gradient(135deg,rgba(0,207,255,0.15),rgba(0,150,220,0.1));border-color:rgba(0,207,255,0.3);color:#00cfff">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Importar contactos CSV (Google)
+    </button>
+    <input type="file" id="vcf-input" accept=".vcf,.vcard" style="display:none" onchange="importarVCF(this)">
+    <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="importarCSV(this)">`;
 
   document.getElementById('sec-alumnos').innerHTML = `
     <div class="search">
@@ -1862,55 +1867,110 @@ function importarVCF(input) {
     });
 
     if (!contactos.length) { toast('No se encontraron contactos en el archivo', 'err'); return; }
-
-    // Filtrar los que ya son alumnos
-    const yaExisten = new Set(S.alumnos.map(a=>a.nombre.toLowerCase().trim()));
-    const nuevos = contactos.filter(c => !yaExisten.has(c.nombre.toLowerCase().trim()));
-
-    window._vcfContacts = nuevos.length ? nuevos : contactos;
-    const total = window._vcfContacts.length;
-    window._vcfTodos = true;
-
-    // Mostrar directo en la página, no en modal
-    const sec = document.getElementById('sec-alumnos');
-    sec.innerHTML = `
-      <div style="padding:0 2px">
-        <div style="font-size:16px;font-weight:800;color:var(--t1);margin-bottom:4px">📋 Importar ${total} contactos</div>
-        <div style="font-size:12px;color:var(--t2);margin-bottom:12px">${nuevos.length < contactos.length ? (contactos.length-nuevos.length)+' ya son alumnos' : 'Seleccioná cuáles agregar como alumnos'}</div>
-        <div style="display:flex;gap:8px;margin-bottom:12px">
-          <button id="vcf-btn-todos" class="btn-green" style="flex:1;padding:12px;font-size:14px" onclick="window._vcfTodos=true;document.querySelectorAll('.vcf-chk').forEach(c=>c.checked=true);document.getElementById('vcf-btn-todos').style.opacity='1';document.getElementById('vcf-btn-ninguno').style.opacity='.5'">✅ Todos</button>
-          <button id="vcf-btn-ninguno" class="btn-outline" style="flex:1;padding:12px;font-size:14px;margin:0;opacity:.5" onclick="window._vcfTodos=false;document.querySelectorAll('.vcf-chk').forEach(c=>c.checked=false);document.getElementById('vcf-btn-ninguno').style.opacity='1';document.getElementById('vcf-btn-todos').style.opacity='.5'">☐ Ninguno</button>
-        </div>
-        <div style="max-height:52vh;overflow-y:auto;border:1px solid rgba(255,255,255,0.08);border-radius:14px;margin-bottom:12px">
-          ${window._vcfContacts.map((c,i)=>`
-            <label style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer">
-              <input type="checkbox" class="vcf-chk" data-i="${i}" checked style="width:20px;height:20px;accent-color:var(--acc);flex-shrink:0">
-              <div style="flex:1;min-width:0">
-                <div style="font-size:13px;font-weight:600;color:var(--t1)">${c.nombre}</div>
-                <div style="font-size:11px;color:var(--t2)">${c.tel||'Sin tel'}</div>
-              </div>
-            </label>`).join('')}
-        </div>
-        <button class="btn-green" style="width:100%;padding:15px;font-size:15px" onclick="window._importarVCFsel()">✅ Importar seleccionados</button>
-        <button class="btn-outline" style="margin-top:8px" onclick="rAlumnos()">← Cancelar</button>
-      </div>`;
-
-    window._importarVCFsel = async () => {
-      const chks = document.querySelectorAll('.vcf-chk:checked');
-      const sel = Array.from(chks).map(c=>window._vcfContacts[+c.dataset.i]);
-      if (!sel.length) { toast('Seleccioná al menos uno','err'); return; }
-      const COLS=['teal','amber','green','blue','coral','purple'];
-      let added=0;
-      for(const c of sel){
-        if(S.alumnos.some(a=>a.nombre.toLowerCase()===c.nombre.toLowerCase()))continue;
-        await DB.add('alumnos',{nombre:c.nombre,tel:c.tel||'',email:c.email||'',nivel:0,freq:1,color:COLS[added%COLS.length],desde:fmt(new Date())});
-        added++;
-      }
-      await loadAll(); rAlumnos(); haptic('success');
-      toast('✅ '+added+' contacto(s) importado(s) como alumnos');
-    };
-
+    mostrarSeleccionContactos(contactos);
     input.value='';
+  };
+  reader.readAsText(file);
+}
+
+function mostrarSeleccionContactos(contactos) {
+  // Filtrar los que ya son alumnos
+  const yaExisten = new Set(S.alumnos.map(a=>a.nombre.toLowerCase().trim()));
+  const nuevos = contactos.filter(c => !yaExisten.has(c.nombre.toLowerCase().trim()));
+
+  window._vcfContacts = nuevos.length ? nuevos : contactos;
+  const total = window._vcfContacts.length;
+  window._vcfTodos = true;
+
+  // Mostrar directo en la página, no en modal
+  const sec = document.getElementById('sec-alumnos');
+  sec.innerHTML = `
+    <div style="padding:0 2px">
+      <div style="font-size:16px;font-weight:800;color:var(--t1);margin-bottom:4px">📋 Importar ${total} contactos</div>
+      <div style="font-size:12px;color:var(--t2);margin-bottom:12px">${nuevos.length < contactos.length ? (contactos.length-nuevos.length)+' ya son alumnos' : 'Seleccioná cuáles agregar como alumnos'}</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button id="vcf-btn-todos" class="btn-green" style="flex:1;padding:12px;font-size:14px" onclick="window._vcfTodos=true;document.querySelectorAll('.vcf-chk').forEach(c=>c.checked=true);document.getElementById('vcf-btn-todos').style.opacity='1';document.getElementById('vcf-btn-ninguno').style.opacity='.5'">✅ Todos</button>
+        <button id="vcf-btn-ninguno" class="btn-outline" style="flex:1;padding:12px;font-size:14px;margin:0;opacity:.5" onclick="window._vcfTodos=false;document.querySelectorAll('.vcf-chk').forEach(c=>c.checked=false);document.getElementById('vcf-btn-ninguno').style.opacity='1';document.getElementById('vcf-btn-todos').style.opacity='.5'">☐ Ninguno</button>
+      </div>
+      <div style="max-height:52vh;overflow-y:auto;border:1px solid rgba(255,255,255,0.08);border-radius:14px;margin-bottom:12px">
+        ${window._vcfContacts.map((c,i)=>`
+          <label style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer">
+            <input type="checkbox" class="vcf-chk" data-i="${i}" checked style="width:20px;height:20px;accent-color:var(--acc);flex-shrink:0">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;color:var(--t1)">${c.nombre}</div>
+              <div style="font-size:11px;color:var(--t2)">${c.tel||'Sin tel'}</div>
+            </div>
+          </label>`).join('')}
+      </div>
+      <button class="btn-green" style="width:100%;padding:15px;font-size:15px" onclick="window._importarVCFsel()">✅ Importar seleccionados</button>
+      <button class="btn-outline" style="margin-top:8px" onclick="rAlumnos()">← Cancelar</button>
+    </div>`;
+
+  window._importarVCFsel = async () => {
+    const chks = document.querySelectorAll('.vcf-chk:checked');
+    const sel = Array.from(chks).map(c=>window._vcfContacts[+c.dataset.i]);
+    if (!sel.length) { toast('Seleccioná al menos uno','err'); return; }
+    const COLS=['teal','amber','green','blue','coral','purple'];
+    let added=0;
+    for(const c of sel){
+      if(S.alumnos.some(a=>a.nombre.toLowerCase()===c.nombre.toLowerCase()))continue;
+      await DB.add('alumnos',{nombre:c.nombre,tel:c.tel||'',email:c.email||'',nivel:0,freq:1,color:COLS[added%COLS.length],desde:fmt(new Date())});
+      added++;
+    }
+    await loadAll(); rAlumnos(); haptic('success');
+    toast('✅ '+added+' contacto(s) importado(s) como alumnos');
+  };
+}
+
+function _parsearLineaCSV(linea) {
+  const result = [];
+  let cur = '';
+  let enComillas = false;
+  for (let i = 0; i < linea.length; i++) {
+    const ch = linea[i];
+    if (enComillas) {
+      if (ch === '"') {
+        if (linea[i+1] === '"') { cur += '"'; i++; }
+        else enComillas = false;
+      } else cur += ch;
+    } else {
+      if (ch === '"') enComillas = true;
+      else if (ch === ',') { result.push(cur); cur = ''; }
+      else cur += ch;
+    }
+  }
+  result.push(cur);
+  return result;
+}
+
+function importarCSV(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const lineas = e.target.result.split(/\r\n|\n/).filter(l => l.trim());
+    if (!lineas.length) { toast('El archivo CSV está vacío', 'err'); return; }
+    const headers = _parsearLineaCSV(lineas[0]).map(h => h.trim());
+    const idx = (nombreCol) => headers.indexOf(nombreCol);
+    const iFirst = idx('First Name'), iMiddle = idx('Middle Name'), iLast = idx('Last Name');
+    const iTel1  = idx('Phone 1 - Value'), iTel2 = idx('Phone 2 - Value');
+    const iEmail = idx('E-mail 1 - Value');
+    if (iFirst < 0 && iTel1 < 0) { toast('El CSV no tiene el formato esperado de Google Contacts', 'err'); return; }
+
+    const contactos = [];
+    for (let i = 1; i < lineas.length; i++) {
+      const cols = _parsearLineaCSV(lineas[i]);
+      const nombre = [cols[iFirst], iMiddle>=0?cols[iMiddle]:'', iLast>=0?cols[iLast]:'']
+        .filter(Boolean).join(' ').trim();
+      if (!nombre) continue;
+      const telCruda = (iTel1>=0 && cols[iTel1]) ? cols[iTel1] : (iTel2>=0 ? cols[iTel2] : '');
+      const tel = telCruda.split(':::')[0].trim();
+      const email = iEmail>=0 ? (cols[iEmail]||'') : '';
+      contactos.push({ nombre, tel, email });
+    }
+    if (!contactos.length) { toast('No se encontraron contactos en el archivo', 'err'); return; }
+    mostrarSeleccionContactos(contactos);
+    input.value = '';
   };
   reader.readAsText(file);
 }
