@@ -1975,6 +1975,22 @@ function importarCSV(input) {
   reader.readAsText(file);
 }
 
+async function buscarContactoParaForm() {
+  if (!('contacts' in navigator && 'ContactsManager' in window)) {
+    toast('Tu navegador no soporta buscar en la agenda del teléfono. Completá los datos a mano.', 'err');
+    return;
+  }
+  try {
+    const contacts = await navigator.contacts.select(['name','tel'], { multiple: false });
+    if (!contacts || !contacts.length) return;
+    const c = contacts[0];
+    const nombre = (c.name && c.name[0]) || '';
+    const tel    = (c.tel  && c.tel[0])  || '';
+    if (nombre) document.getElementById('fa-nombre').value = nombre;
+    if (tel)    document.getElementById('fa-tel').value = tel;
+  } catch(e) { console.error(e); }
+}
+
 async function importarDesdeAgenda() {
   // Check for Contact Picker API support
   if (!('contacts' in navigator && 'ContactsManager' in window)) {
@@ -3618,6 +3634,7 @@ function formAlumno(id) {
     `<option value="${i}" ${al?.nivel===i?'selected':''}>${n}</option>`).join('');
 
   openModal(al ? 'Editar alumno' : 'Nuevo alumno', `
+    ${al ? '' : `<button type="button" class="btn-outline" style="width:100%;margin-bottom:14px;border-color:var(--acc);color:var(--acc)" onclick="buscarContactoParaForm()">🔍 Buscar en contactos</button>`}
     <label class="flbl">Nombre completo *</label>
     <input class="finp" id="fa-nombre" type="text" value="${al?.nombre||''}" placeholder="Ej: Martina García">
     <label class="flbl">Teléfono</label>
