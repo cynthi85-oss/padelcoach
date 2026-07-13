@@ -4497,7 +4497,7 @@ async function _getDriveToken(forceNew = false) {
     if (!_driveTokenClient) {
       _driveTokenClient = google.accounts.oauth2.initTokenClient({
         client_id: '228796545161-onuqd5m0l2m92ove62b4u5dhse3n5uvh.apps.googleusercontent.com',
-        scope: 'https://www.googleapis.com/auth/drive.file',
+        scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly',
         callback: cb
       });
     } else {
@@ -4508,6 +4508,26 @@ async function _getDriveToken(forceNew = false) {
   });
 }
 
+const CARPETA_BACKUP_NOMBRE = 'backup horarios y pagos';
+let _carpetaBackupId = null;
+async function _getCarpetaBackupId(token) {
+  if (_carpetaBackupId) return _carpetaBackupId;
+  const cacheada = localStorage.getItem('drive_carpeta_backup_id');
+  if (cacheada) { _carpetaBackupId = cacheada; return _carpetaBackupId; }
+  const q = encodeURIComponent(`name = '${CARPETA_BACKUP_NOMBRE}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+  try {
+    const r = await _fetchConTimeout(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=1`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (r.ok) {
+      const carpeta = (await r.json()).files?.[0];
+      if (carpeta) { _carpetaBackupId = carpeta.id; localStorage.setItem('drive_carpeta_backup_id', carpeta.id); return _carpetaBackupId; }
+    }
+  } catch(e) { console.warn('Buscar carpeta Drive:', e.message); }
+  return null;
+}
+
 async function subirBackupDrive() {
   const btn = [...document.querySelectorAll('button')].find(b => b.textContent.includes('Google Drive'));
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Conectando...'; }
@@ -4516,12 +4536,14 @@ async function subirBackupDrive() {
     let token = await _getDriveToken();
     const { fileName, blob } = _generarBackup();
     const fileContent = await blob.text();
+    const carpetaId = await _getCarpetaBackupId(token);
 
     if (btn) btn.textContent = '⏳ Subiendo...';
 
     // Buscar backup previo para sobreescribir (solo archivos de esta app)
     let existingId = null;
-    const q = encodeURIComponent(`name contains 'PadelConEmmanuel_backup' and trashed=false`);
+    const enCarpeta = carpetaId ? ` and '${carpetaId}' in parents` : '';
+    const q = encodeURIComponent(`name contains 'PadelConEmmanuel_backup' and trashed=false${enCarpeta}`);
     try {
       const sr = await _fetchConTimeout(
         `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=1`,
@@ -4543,7 +4565,9 @@ async function subirBackupDrive() {
     }
 
     const boundary = 'pdl' + Date.now();
-    const meta     = JSON.stringify({ name: fileName, mimeType: 'application/json' });
+    const metaObj  = { name: fileName, mimeType: 'application/json' };
+    if (!existingId && carpetaId) metaObj.parents = [carpetaId];
+    const meta     = JSON.stringify(metaObj);
     const body     = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${fileContent}\r\n--${boundary}--`;
 
     const uploadUrl = existingId
