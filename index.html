@@ -1784,7 +1784,7 @@ function rAlumnos(q='') {
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       Importar contactos CSV (Google)
     </button>
-    <input type="file" id="vcf-input" accept=".vcf,.vcard" style="display:none" onchange="importarVCF(this)">
+    <input type="file" id="vcf-input" accept=".vcf,.vcard,text/vcard,text/x-vcard,text/plain,*/*" style="display:none" onchange="importarVCF(this)">
     <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="importarCSV(this)">`;
 
   document.getElementById('sec-alumnos').innerHTML = `
@@ -1809,6 +1809,42 @@ function rAlumnos(q='') {
   toggleBtn.innerHTML = mostrarArchivados ? '👥 Ver alumnos activos ('+activos.length+')' : '📦 Ver archivados'+(nArch>0?' ('+nArch+')':'');
   toggleBtn.onclick = () => { window._mostrarArchivados = !window._mostrarArchivados; rAlumnos(q); };
   document.getElementById('sec-alumnos').appendChild(toggleBtn);
+
+  const dupBtn = document.createElement('button');
+  dupBtn.className = 'btn-outline';
+  dupBtn.style.cssText = 'margin-top:8px;border-color:rgba(255,180,0,0.3);color:var(--am);font-size:13px';
+  dupBtn.innerHTML = '🔍 Verificar teléfonos duplicados';
+  dupBtn.onclick = verificarTelefonosDuplicados;
+  document.getElementById('sec-alumnos').appendChild(dupBtn);
+}
+
+function verificarTelefonosDuplicados() {
+  const porTel = {};
+  S.alumnos.forEach(al => {
+    const t = (al.tel||'').replace(/\D/g,'');
+    if (!t) return;
+    if (!porTel[t]) porTel[t] = [];
+    porTel[t].push(al);
+  });
+  const dups = Object.entries(porTel).filter(([_,als]) => als.length > 1);
+  if (!dups.length) { toast('✅ No hay teléfonos duplicados entre alumnos'); return; }
+
+  const rows = dups.map(([tel, als]) =>
+    `<div style="padding:12px;background:var(--s3);border-radius:12px;margin-bottom:8px">
+      <div style="font-size:12px;color:var(--am);font-weight:700;margin-bottom:6px">📱 ${tel}</div>
+      ${als.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
+        <span style="font-size:13px;color:var(--t1)">${a.nombre}</span>
+        <button class="btn-icon" style="font-size:12px;padding:4px 10px" onclick="closeModal();formAlumno(${a.id})">✏️ Editar</button>
+      </div>`).join('')}
+    </div>`
+  ).join('');
+
+  openModal('⚠️ Teléfonos duplicados', `
+    <div style="font-size:13px;color:var(--t2);margin-bottom:14px">
+      Estos alumnos comparten el mismo número — por eso WhatsApp puede abrir el contacto equivocado. Editá el teléfono correcto de cada uno.
+    </div>
+    ${rows}
+  `, null);
 }
  
 function _vcfAll(v){document.querySelectorAll(".vcf-chk").forEach(c=>c.checked=v);}
