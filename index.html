@@ -2629,9 +2629,10 @@ function rPagos(vista = 'alumnos') {
     const alumnosFiltrados = (qPagos
       ? S.alumnos.filter(al => al.nombre.toLowerCase().includes(qPagos))
       : S.alumnos
-    ).slice().sort((a,b) => {
-      const pendA = tieneClasesP(a.id) && !tienePagoMesP(a.id);
-      const pendB = tieneClasesP(b.id) && !tienePagoMesP(b.id);
+    ).filter(al => tieneClasesP(al.id)) // solo alumnos con al menos una clase (pagada o pendiente)
+     .slice().sort((a,b) => {
+      const pendA = !tienePagoMesP(a.id);
+      const pendB = !tienePagoMesP(b.id);
       if (pendA && !pendB) return -1;
       if (!pendA && pendB) return 1;
       return a.nombre.localeCompare(b.nombre);
