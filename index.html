@@ -5289,15 +5289,20 @@ async function restaurarArchivosDrive(fileId, fileName) {
 function _normNombre(s) {
   return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z ]/g,'').trim();
 }
-// Busca alumnos cuyo nombre completo (todas sus palabras) aparezca dentro de la
-// etiqueta exportada (que puede traer horario/apodo pegado, ej: "Fernando Alan Lunes 8am").
+// Busca alumnos por coincidencia de palabras EN CUALQUIER DIRECCIÓN:
+// - la etiqueta exportada puede traer horario pegado ("Fernando Alan Lunes 8am")
+// - o el contacto real puede tener el horario pegado ("Alan Lunes 8 Am")
+// Se compara el conjunto MÁS CORTO de palabras contra el más largo — si todas están, es candidato.
 // Solo es útil auto-completar cuando da EXACTAMENTE un candidato — si da 2+ o 0, queda ambiguo.
 function _candidatosParaEntrada(nombreExport) {
-  const wordsExport = _normNombre(nombreExport).split(' ').filter(Boolean);
+  const wordsExport = _normNombre(nombreExport).split(' ').filter(w => w.length >= 2);
+  if (!wordsExport.length) return [];
   return S.alumnos.filter(a => {
-    const wordsAl = _normNombre(a.nombre).split(' ').filter(w => w.length >= 3);
+    const wordsAl = _normNombre(a.nombre).split(' ').filter(w => w.length >= 2);
     if (!wordsAl.length) return false;
-    return wordsAl.every(w => wordsExport.includes(w));
+    const corto  = wordsAl.length <= wordsExport.length ? wordsAl : wordsExport;
+    const largo  = wordsAl.length <= wordsExport.length ? wordsExport : wordsAl;
+    return corto.every(w => largo.includes(w));
   });
 }
 function _claveImportPago(nombre, fecha, monto) {
