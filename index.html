@@ -5310,6 +5310,32 @@ function _claveImportPago(nombre, fecha, monto) {
   return _normNombre(nombre) + '|' + fecha + '|' + monto;
 }
 
+// Busca una clase ya existente para esa fecha+hora+alumno, o crea una nueva.
+// Devuelve el id de la clase (real, con calendario/GCal como cualquier otra).
+async function _obtenerOCrearClase(fecha, hora, cancha, alumnoIds, esGrupal) {
+  const existente = S.clases.find(c =>
+    c.fecha === fecha && c.hora === hora &&
+    (alumnoIds.includes(c.alumnoId) || (c.alumnosIds||[]).some(id => alumnoIds.includes(id)))
+  );
+  if (existente) return existente.id;
+
+  const nombres = alumnoIds.map(id => S.alumnos.find(a=>a.id===id)?.nombre).filter(Boolean);
+  const titulo  = esGrupal ? nombres.join(' y ') : (nombres[0] || 'Clase');
+
+  const claseObj = {
+    titulo, fecha, hora: hora || '09:00', dur: 60,
+    cancha: cancha || '', tipo: esGrupal ? 'grupal' : 'particular',
+    alumnoId: alumnoIds[0] || null,
+    alumnosIds: esGrupal ? alumnoIds : [],
+    estado: 'confirmada', notas: 'Creada desde la web de horarios',
+  };
+  const nuevaId = await DB.add('clases', claseObj);
+  if (typeof GCAL !== 'undefined' && GCAL.isConnected && GCAL.isConnected()) {
+    GCAL.syncOne({ ...claseObj, id: nuevaId }).catch(() => {});
+  }
+  return nuevaId;
+}
+
 async function _descargarPagosHorarios(token) {
   const carpetaId = await _getCarpetaBackupId(token);
   const q = encodeURIComponent(`name = 'horario_pagos_pendientes.json' and trashed=false${carpetaId?` and '${carpetaId}' in parents`:''}`);
@@ -5333,8 +5359,8 @@ async function verificarPagosHorariosAuto() {
     if (!entradas.length) return;
 
     const clavesExistentes = new Set(S.pagos.map(p => p.claveImport).filter(Boolean));
-    let autoCreados = 0;
     const sinMatch = [];
+    const resueltas = []; // { entrada, alumnoId }
 
     for (const e of entradas) {
       const clave = _claveImportPago(e.nombre, e.fecha, e.monto);
@@ -5344,23 +5370,41 @@ async function verificarPagosHorariosAuto() {
       let candidatos = S.alumnos.filter(a => _normNombre(a.nombre) === _normNombre(e.nombre));
       if (candidatos.length !== 1) candidatos = _candidatosParaEntrada(e.nombre);
       if (candidatos.length === 1) {
-        await DB.add('pagos', {
-          alumnoId: candidatos[0].id, monto: e.monto, metodo: e.metodo || '',
-          estado: e.estado || 'pendiente', fecha: e.fecha,
-          notas: 'Importado automáticamente desde web de horarios',
-          comprobante: e.comprobante || undefined,
-          claveImport: clave,
-        });
-        autoCreados++;
+        resueltas.push({ entrada: e, alumnoId: candidatos[0].id });
       } else {
         sinMatch.push(e);
       }
     }
 
     window._pagosHorariosSinMatch = sinMatch;
-    if (autoCreados > 0) {
+
+    if (resueltas.length) {
+      // Agrupar por clase (mismo fecha+hora+claseGrupo) para crear una sola clase por grupo
+      const grupos = {};
+      resueltas.forEach(r => {
+        const key = r.entrada.claseGrupo || (r.entrada.fecha + '|' + (r.entrada.hora||''));
+        (grupos[key] = grupos[key] || []).push(r);
+      });
+
+      let autoCreados = 0;
+      for (const key in grupos) {
+        const items = grupos[key];
+        const primero = items[0].entrada;
+        const alumnoIds = items.map(it => it.alumnoId);
+        const claseId = await _obtenerOCrearClase(primero.fecha, primero.hora, primero.cancha, alumnoIds, !!primero.esGrupal);
+        for (const it of items) {
+          await DB.add('pagos', {
+            alumnoId: it.alumnoId, claseId, monto: it.entrada.monto, metodo: it.entrada.metodo || '',
+            estado: it.entrada.estado || 'pendiente', fecha: it.entrada.fecha,
+            notas: 'Importado automáticamente desde web de horarios',
+            comprobante: it.entrada.comprobante || undefined,
+            claveImport: _claveImportPago(it.entrada.nombre, it.entrada.fecha, it.entrada.monto),
+          });
+          autoCreados++;
+        }
+      }
       await loadAll();
-      toast(`✅ ${autoCreados} pago(s) importados automáticamente desde la web de horarios`);
+      toast(`✅ ${autoCreados} pago(s) y sus clases importados automáticamente`);
     }
   } catch(e) { console.warn('verificarPagosHorariosAuto:', e.message); }
 }
@@ -5398,23 +5442,41 @@ async function importarPagosDesdeHorarios() {
       </div>
       <div style="max-height:340px;overflow-y:auto">${filas}</div>
     `, async () => {
-      let creados = 0;
+      // Recolectar los resueltos y agruparlos por clase (mismo fecha+hora+claseGrupo)
+      const resueltas = [];
       for (let i = 0; i < window._impPagos.length; i++) {
         const sel = document.getElementById('imp-al-'+i);
         if (!sel || !sel.value) continue;
-        const e = window._impPagos[i];
-        const alumnoId = parseInt(sel.value);
-        await DB.add('pagos', {
-          alumnoId, monto: e.monto, metodo: e.metodo || '', estado: e.estado || 'pendiente',
-          fecha: e.fecha, notas: 'Importado desde web de horarios (revisado a mano)',
-          comprobante: e.comprobante || undefined,
-          claveImport: _claveImportPago(e.nombre, e.fecha, e.monto),
-        });
-        creados++;
+        resueltas.push({ entrada: window._impPagos[i], alumnoId: parseInt(sel.value) });
       }
+
+      let creados = 0;
+      const grupos = {};
+      resueltas.forEach(r => {
+        const key = r.entrada.claseGrupo || (r.entrada.fecha + '|' + (r.entrada.hora||''));
+        (grupos[key] = grupos[key] || []).push(r);
+      });
+
+      for (const key in grupos) {
+        const items = grupos[key];
+        const primero = items[0].entrada;
+        const alumnoIds = items.map(it => it.alumnoId);
+        const claseId = await _obtenerOCrearClase(primero.fecha, primero.hora, primero.cancha, alumnoIds, !!primero.esGrupal || items.length > 1);
+        for (const it of items) {
+          await DB.add('pagos', {
+            alumnoId: it.alumnoId, claseId, monto: it.entrada.monto, metodo: it.entrada.metodo || '',
+            estado: it.entrada.estado || 'pendiente', fecha: it.entrada.fecha,
+            notas: 'Importado desde web de horarios (revisado a mano)',
+            comprobante: it.entrada.comprobante || undefined,
+            claveImport: _claveImportPago(it.entrada.nombre, it.entrada.fecha, it.entrada.monto),
+          });
+          creados++;
+        }
+      }
+
       await loadAll(); closeModal();
       if (creados > 0) window._pagosHorariosSinMatch = null;
-      toast(creados > 0 ? `✅ ${creados} pago(s) importado(s)` : 'No elegiste ningún alumno — no se importó nada', creados > 0 ? 'ok' : 'err');
+      toast(creados > 0 ? `✅ ${creados} pago(s) y sus clases importados` : 'No elegiste ningún alumno — no se importó nada', creados > 0 ? 'ok' : 'err');
       rPagos();
     }, '✅ Importar seleccionados');
   } catch(e) {
